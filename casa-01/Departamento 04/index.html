@@ -1,0 +1,2744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Departamento 04</title>
+
+<script type="importmap">
+{
+    "imports": {
+        "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.21.4/build/playcanvas.mjs",
+        "@playcanvas/web-components": "https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.18.0/dist/pwc.min.mjs"
+    }
+}
+</script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.18.0/dist/pwc.min.mjs"></script>
+
+<style>
+    :root {
+        color-scheme: dark;
+    }
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #111;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        overflow: hidden;
+    }
+    pc-app {
+        width: 100%;
+        height: 100dvh;
+        display: block;
+    }
+
+    #interfaz {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+    }
+    /* Positioning reference for the controls that belong to the 3D/POV view (walk-fly toggle,
+       help, vista-marker toggle, split-screen toggle) rather than the app as a whole. Identical to
+       #interfaz (full viewport) normally, so it changes nothing outside split-screen mode - there,
+       it's resized to match pc-app's pane so bottom-anchored buttons hug the POV pane's edge
+       instead of drifting into whichever pane the minimap currently occupies. */
+    #capaPov {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+    }
+    #marca {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #fff;
+        background: rgba(0,0,0,0.45);
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+        backdrop-filter: blur(4px);
+        /* Above #panelMinimapa's z-index:1 (and its z-index:2 dropdown) in case a future layout
+           ever puts the minimap pane behind this corner. */
+        z-index: 3;
+    }
+    #marca strong { font-weight: 600; }
+    #marca svg { height: 32px; width: auto; flex-shrink: 0; }
+
+    #selectorPisos {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        pointer-events: auto;
+        z-index: 3;
+    }
+    #botonMenuPisos {
+        height: 54px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        padding: 0 20px;
+        background: #e8622c;
+        color: #fff;
+        border: none;
+        border-radius: 27px;
+        font-size: 15px;
+        cursor: pointer;
+        box-shadow: 0 2px 14px rgba(232,98,44,0.55);
+        transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    }
+    #botonMenuPisos:hover { background: #f3703a; box-shadow: 0 2px 16px rgba(232,98,44,0.7); }
+    #botonMenuPisos:active { transform: scale(0.96); }
+    #botonMenuPisos[aria-expanded="true"] { background: #c94e1e; }
+    #botonMenuPisos svg { width: 24px; height: 24px; flex-shrink: 0; }
+    #etiquetaMenuPisos { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+
+    #menuPisos {
+        position: absolute;
+        top: 62px;
+        right: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        background: rgba(20,20,20,0.75);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px;
+        padding: 6px;
+        min-width: 68px;
+        backdrop-filter: blur(4px);
+    }
+    #menuPisos[hidden] { display: none; }
+    #menuPisos { z-index: 2; }
+
+    #panelMinimapa {
+        position: absolute;
+        top: 80px;
+        right: 16px;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        pointer-events: auto;
+    }
+    #panelMinimapa[hidden] { display: none; }
+    #minimapaLienzo {
+        position: relative;
+        width: 190px;
+        background: rgba(20,20,20,0.75);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px;
+        overflow: hidden;
+        backdrop-filter: blur(4px);
+        cursor: pointer;
+    }
+    #minimapaLienzo[hidden] { display: none; }
+    #minimapaImagen {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    #minimapaMarcadores {
+        position: absolute;
+        inset: 0;
+    }
+    .marcador-mini {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 16px;
+        height: 16px;
+        padding: 0;
+        border-radius: 50%;
+        background: rgba(20,20,20,0.85);
+        border: 1px solid rgba(255,255,255,0.4);
+        color: #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        pointer-events: auto;
+        transition: background 0.15s, color 0.15s, transform 0.1s;
+    }
+    .marcador-mini:hover { background: #e8622c; color: #fff; border-color: #fff; transform: translate(-50%, -50%) scale(1.2); }
+    .marcador-mini svg { width: 10px; height: 10px; flex-shrink: 0; }
+    .marcador-mini-vista { background: rgba(79,168,232,0.85); border-color: rgba(255,255,255,0.6); color: #fff; }
+    .marcador-mini-vista:hover { background: #6bb8f0; }
+    #minimapaJugador {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        color: #4fc3ff;
+        filter: drop-shadow(0 0 2px rgba(0,0,0,0.9));
+        pointer-events: none;
+    }
+    #minimapaJugador svg { width: 100%; height: 100%; display: block; }
+    #minimapaVertical {
+        display: flex;
+        gap: 4px;
+        pointer-events: auto;
+    }
+    #minimapaVertical[hidden] { display: none; }
+
+    /* Mobile split-screen mode: pc-app's canvas keeps the top two-thirds, the minimap fills the
+       bottom third instead of floating over a corner of it. Toggled by adding .modo-dividido to
+       <body> - see #botonAlternarDivision. Desktop never gets this class. */
+    body.modo-dividido pc-app {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 66.667dvh;
+    }
+    body.modo-dividido #capaPov {
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 66.667dvh;
+        bottom: auto;
+    }
+    body.modo-dividido #panelMinimapa {
+        position: fixed;
+        top: 66.667dvh;
+        left: 0;
+        right: auto;
+        width: 100%;
+        height: 33.333dvh;
+        z-index: 1;
+        justify-content: center;
+        background: #0d0d0d;
+        border-radius: 0;
+        padding: 4px 8px 8px;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+    body.modo-dividido #minimapaLienzo {
+        width: 100%;
+        max-height: 100%;
+        flex: 0 1 auto;
+    }
+    #botonPisoArriba, #botonPisoAbajo {
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.45);
+        color: #ddd;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 50%;
+        cursor: pointer;
+        backdrop-filter: blur(4px);
+        transition: background 0.15s, color 0.15s;
+    }
+    #botonPisoArriba:hover, #botonPisoAbajo:hover { background: #e8622c; color: #fff; border-color: #e8622c; }
+    #botonPisoArriba svg, #botonPisoAbajo svg { width: 18px; height: 18px; flex-shrink: 0; }
+    #botonPisoArriba[hidden], #botonPisoAbajo[hidden] { display: none; }
+
+    #selectorVistas {
+        position: absolute;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 5px;
+        border-radius: 999px;
+        background: rgba(20,20,20,0.6);
+        border: 1px solid rgba(255,255,255,0.15);
+        backdrop-filter: blur(6px);
+        box-shadow: 0 2px 14px rgba(0,0,0,0.4);
+        pointer-events: auto;
+        opacity: 1;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    #selectorVistas[hidden] { display: none; }
+    #selectorVistas.selector-vistas-oculto {
+        opacity: 0;
+        transform: translateX(-50%) translateY(12px);
+        pointer-events: none;
+    }
+    .boton-selector-vista {
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        color: #ccc;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .boton-selector-vista:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .boton-selector-vista svg { width: 20px; height: 20px; }
+    #puntosVista {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 2px;
+    }
+    .punto-vista {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.35);
+        transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .punto-vista.activo {
+        background: #e8622c;
+        transform: scale(1.3);
+    }
+
+    #selectorModoNav {
+        position: absolute;
+        bottom: 16px;
+        right: 16px;
+        display: flex;
+        gap: 6px;
+        pointer-events: auto;
+    }
+    #selectorModoNav[hidden] { display: none; }
+    .boton-modo-nav {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.45);
+        color: #ddd;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 50%;
+        cursor: pointer;
+        backdrop-filter: blur(4px);
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .boton-modo-nav:hover { background: rgba(255,255,255,0.18); color: #fff; }
+    .boton-modo-nav.activo { background: #e8622c; color: #fff; border-color: #e8622c; }
+    .boton-modo-nav svg { width: 18px; height: 18px; }
+    /* .boton-modo-nav's own display:flex above otherwise wins over the [hidden] attribute (an
+       author-stylesheet rule always beats the UA stylesheet's [hidden]{display:none}, regardless
+       of specificity) - this is what was keeping the fly-mode button visible on mobile. */
+    .boton-modo-nav[hidden] { display: none; }
+
+    .boton-piso {
+        background: transparent;
+        color: #ddd;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 13px;
+        text-align: center;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .boton-piso:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .boton-piso.activo { background: #e8622c; color: #fff; }
+
+    #marcadoresPortal {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+    }
+    .marcador-portal {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 14px 7px 10px;
+        border-radius: 999px;
+        background: rgba(20,20,20,0.75);
+        border: 1px solid rgba(232,98,44,0.6);
+        box-shadow: 0 0 0 5px rgba(232,98,44,0.15), 0 2px 10px rgba(0,0,0,0.5);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+        cursor: pointer;
+        pointer-events: auto;
+        backdrop-filter: blur(4px);
+        opacity: 1;
+        transform-origin: center;
+        transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease, opacity 0.2s ease;
+    }
+    .marcador-portal.marcador-oculto {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.7);
+        pointer-events: none;
+    }
+    .marcador-portal:hover {
+        transform: translate(-50%, -50%) scale(1.08);
+        background: rgba(232,98,44,0.9);
+        box-shadow: 0 0 0 6px rgba(232,98,44,0.25), 0 2px 12px rgba(0,0,0,0.5);
+    }
+    .icono-marcador-portal {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        color: #e8622c;
+        filter: drop-shadow(0 0 4px rgba(232,98,44,0.9));
+    }
+
+    #panelEditor {
+        position: absolute;
+        bottom: 16px;
+        right: 16px;
+        width: 240px;
+        background: rgba(40,20,0,0.85);
+        border: 1px solid rgba(255,180,80,0.4);
+        border-radius: 10px;
+        padding: 12px;
+        pointer-events: auto;
+        font-size: 12px;
+        color: #ddd;
+        backdrop-filter: blur(4px);
+    }
+    #panelEditor[hidden] { display: none; }
+    .encabezado-editor {
+        color: #ffb050;
+        font-weight: 700;
+        font-size: 13px;
+        margin-bottom: 8px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+    #lecturaEditor {
+        font-family: Consolas, monospace;
+        font-size: 11px;
+        color: #9c9;
+        margin-bottom: 8px;
+        white-space: pre;
+    }
+    #panelEditor button, #panelEditor select {
+        width: 100%;
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-size: 12px;
+        cursor: pointer;
+        margin-bottom: 6px;
+    }
+    #panelEditor button:hover { background: rgba(255,255,255,0.2); }
+    .fila-editor { display: flex; gap: 6px; }
+    .fila-editor select, .fila-editor button { margin-bottom: 6px; }
+    #estadoPortal { color: #ffb050; margin-bottom: 6px; min-height: 1em; }
+    .etiqueta-seccion-editor {
+        color: #ffb050;
+        opacity: 0.75;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 10px 0 4px;
+    }
+    #botonCancelarPortal { background: rgba(255,80,80,0.25); }
+    #listaVistas, #listaPortales { max-height: 140px; overflow-y: auto; margin-bottom: 6px; }
+    .item-editor {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 4px;
+        padding: 4px 6px;
+        margin-bottom: 4px;
+    }
+    .item-editor span {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .item-editor button {
+        width: auto;
+        margin: 0;
+        padding: 2px 7px;
+        background: rgba(255,80,80,0.25);
+    }
+
+    #modalExportar {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 30;
+        pointer-events: auto;
+    }
+    #modalExportar[hidden] { display: none; }
+    #cajaModalExportar {
+        background: #1a1a1a;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 10px;
+        padding: 16px;
+        width: min(600px, 90vw);
+        color: #ddd;
+        font-size: 13px;
+    }
+    #textoExportar {
+        width: 100%;
+        height: 300px;
+        background: #0d0d0d;
+        color: #9c9;
+        font-family: Consolas, monospace;
+        font-size: 12px;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 6px;
+        padding: 8px;
+        box-sizing: border-box;
+        margin: 10px 0;
+    }
+    #cajaModalExportar button {
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 6px;
+        padding: 8px 14px;
+        cursor: pointer;
+    }
+    #cajaModalExportar button:hover { background: rgba(255,255,255,0.2); }
+
+    #ayudaNav {
+        position: absolute;
+        bottom: 16px;
+        left: 16px;
+        pointer-events: auto;
+    }
+    #botonAyudaNav {
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.45);
+        color: #ddd;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 50%;
+        cursor: pointer;
+        backdrop-filter: blur(4px);
+        transition: background 0.15s, color 0.15s;
+    }
+    #botonAyudaNav:hover, #botonAyudaNav[aria-expanded="true"] { background: rgba(255,255,255,0.18); color: #fff; }
+    #botonAyudaNav svg { width: 18px; height: 18px; }
+    #botonAlternarSelectorVistas {
+        position: absolute;
+        bottom: 16px;
+        left: 60px;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.45);
+        color: #ddd;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 50%;
+        cursor: pointer;
+        pointer-events: auto;
+        backdrop-filter: blur(4px);
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #botonAlternarSelectorVistas:hover { background: rgba(255,255,255,0.18); color: #fff; }
+    #botonAlternarSelectorVistas[aria-pressed="true"] { background: #e8622c; color: #fff; border-color: #e8622c; }
+    #botonAlternarSelectorVistas svg { width: 18px; height: 18px; }
+    #botonAlternarSelectorVistas[hidden] { display: none; }
+    #botonAlternarDivision {
+        position: absolute;
+        bottom: 16px;
+        /* 60px, not 104px - this button only ever shows on mobile, where the vista-selector
+           toggle that occupies the 60px slot on desktop is always hidden, leaving a gap. */
+        left: 60px;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.45);
+        color: #ddd;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 50%;
+        cursor: pointer;
+        pointer-events: auto;
+        backdrop-filter: blur(4px);
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #botonAlternarDivision:hover { background: rgba(255,255,255,0.18); color: #fff; }
+    #botonAlternarDivision[aria-pressed="true"] { background: #e8622c; color: #fff; border-color: #e8622c; }
+    #botonAlternarDivision svg { width: 18px; height: 18px; }
+    #botonAlternarDivision[hidden] { display: none; }
+    #botonBajarExterior {
+        position: absolute;
+        bottom: 16px;
+        right: 16px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 18px;
+        background: #e8622c;
+        color: #fff;
+        border: none;
+        border-radius: 22px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        pointer-events: auto;
+        box-shadow: 0 2px 14px rgba(232,98,44,0.55);
+        transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    }
+    #botonBajarExterior:hover { background: #f3703a; box-shadow: 0 2px 16px rgba(232,98,44,0.7); }
+    #botonBajarExterior:active { transform: scale(0.96); }
+    #botonBajarExterior svg { width: 18px; height: 18px; flex-shrink: 0; }
+    #botonBajarExterior[hidden] { display: none; }
+    #panelAyudaNav {
+        position: absolute;
+        bottom: 44px;
+        left: 0;
+        color: #ddd;
+        background: rgba(20,20,20,0.75);
+        border: 1px solid rgba(255,255,255,0.15);
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        white-space: nowrap;
+        backdrop-filter: blur(4px);
+    }
+    #panelAyudaNav[hidden] { display: none; }
+
+    #cargando {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #111;
+        z-index: 20;
+        transition: opacity 0.4s;
+    }
+    #cargando.oculto { opacity: 0; pointer-events: none; }
+    #cargando svg {
+        position: absolute;
+        bottom: 48px;
+        left: 50%;
+        transform: translateX(-50%);
+        height: 96px;
+        width: auto;
+    }
+    .cargando-anim {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 3px solid rgba(255,255,255,0.15);
+        border-top-color: #e8622c;
+        animation: girar 0.8s linear infinite;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+
+    #transicion {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 15;
+        transition: opacity 0.35s ease;
+    }
+    #transicion.activo { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="cargando">
+    <svg viewBox="0 0 841.89 595.28" fill="#e8622c">
+        <g>
+            <g>
+                <path d="M688.5,407.33l-.49-124.58c-2.56-7.9-8.41-12.43-16.14-15.63h-115.37c-.39-11.96,4.76-23,14.16-30.07,6.52-4.91,14.2-5.81,22.51-5.82l83.53-.11c6.87,0,13.87,3.2,20,5.74,19.92,8.24,32.95,25.95,34.55,47.68l.05,122.82h-42.8Z"></path>
+                <path d="M593.35,407.34h-36.94s.01-130.76.01-130.76c17.25,0,32.48,11.55,35.76,28.91l1.17,101.85Z"></path>
+            </g>
+            <g>
+                <path d="M218.66,367.23l.12,36.41-54.54-.51c-15.04.56-29.04-4.4-39.25-15.64-8.12-8.93-14.16-20.68-14.18-33.22l-.12-81.86c18.41.23,34.84,12.93,36.06,31.12l.81,50.88c1.93,5.54,7.1,13.31,13.88,13.33l41.53.13,15.7-.65Z"></path>
+                <polygon points="218.62 227.24 218.76 263.48 110.59 263.48 110.6 187.98 147.5 187.93 147.53 227.26 218.62 227.24"></polygon>
+                <g>
+                    <path d="M278.56,328.97l.31,74.49h-37s.07-131.18.07-131.18c15.65.7,31.7,10.62,35.01,26.14,2.07,9.69,1.57,19.95,1.61,30.55Z"></path>
+                    <path d="M357.44,263.45l-115.33-.89c-.08-16.03,9.93-30.59,25.4-34.87l68.2-.76,21.74-.5v37.03Z"></path>
+                </g>
+            </g>
+        </g>
+        <path d="M537.46,319.08c0,47.94-38.9,86.81-86.88,86.81s-86.88-38.87-86.88-86.81,38.9-86.81,86.88-86.81,86.88,38.87,86.88,86.81ZM497.45,319.12c0-25.87-20.99-46.84-46.87-46.84s-46.87,20.97-46.87,46.84,20.99,46.84,46.87,46.84,46.87-20.97,46.87-46.84Z"></path>
+    </svg>
+    <div class="cargando-anim"></div>
+</div>
+<div id="transicion"></div>
+
+<div id="interfaz">
+    <div id="marcadoresPortal"></div>
+    <svg id="svgCursorNav" style="position:absolute;inset:0;pointer-events:none;overflow:visible;display:none;">
+        <polygon id="anilloCursorNav" fill="#fff" fill-opacity="0.35" stroke="#fff" stroke-opacity="0.85" stroke-width="1.5"></polygon>
+    </svg>
+    <div id="marca">
+        <svg viewBox="0 0 841.89 595.28" fill="#e8622c">
+            <g>
+                <g>
+                    <path d="M688.5,407.33l-.49-124.58c-2.56-7.9-8.41-12.43-16.14-15.63h-115.37c-.39-11.96,4.76-23,14.16-30.07,6.52-4.91,14.2-5.81,22.51-5.82l83.53-.11c6.87,0,13.87,3.2,20,5.74,19.92,8.24,32.95,25.95,34.55,47.68l.05,122.82h-42.8Z"></path>
+                    <path d="M593.35,407.34h-36.94s.01-130.76.01-130.76c17.25,0,32.48,11.55,35.76,28.91l1.17,101.85Z"></path>
+                </g>
+                <g>
+                    <path d="M218.66,367.23l.12,36.41-54.54-.51c-15.04.56-29.04-4.4-39.25-15.64-8.12-8.93-14.16-20.68-14.18-33.22l-.12-81.86c18.41.23,34.84,12.93,36.06,31.12l.81,50.88c1.93,5.54,7.1,13.31,13.88,13.33l41.53.13,15.7-.65Z"></path>
+                    <polygon points="218.62 227.24 218.76 263.48 110.59 263.48 110.6 187.98 147.5 187.93 147.53 227.26 218.62 227.24"></polygon>
+                    <g>
+                        <path d="M278.56,328.97l.31,74.49h-37s.07-131.18.07-131.18c15.65.7,31.7,10.62,35.01,26.14,2.07,9.69,1.57,19.95,1.61,30.55Z"></path>
+                        <path d="M357.44,263.45l-115.33-.89c-.08-16.03,9.93-30.59,25.4-34.87l68.2-.76,21.74-.5v37.03Z"></path>
+                    </g>
+                </g>
+            </g>
+            <path d="M537.46,319.08c0,47.94-38.9,86.81-86.88,86.81s-86.88-38.87-86.88-86.81,38.9-86.81,86.88-86.81,86.88,38.87,86.88,86.81ZM497.45,319.12c0-25.87-20.99-46.84-46.87-46.84s-46.87,20.97-46.87,46.84,20.99,46.84,46.87,46.84,46.87-20.97,46.87-46.84Z"></path>
+        </svg>
+        <strong>DEPARTAMENTO 04</strong>
+    </div>
+    <div id="selectorPisos" hidden style="display:none">
+        <div id="minimapaVertical" hidden>
+            <button id="botonPisoArriba" aria-label="Subir de piso" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </button>
+            <button id="botonPisoAbajo" aria-label="Bajar de piso" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+        </div>
+        <button id="botonMenuPisos" aria-label="Seleccionar piso" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="2" width="16" height="20"></rect>
+                <line x1="4" y1="8" x2="20" y2="8"></line>
+                <line x1="4" y1="13" x2="20" y2="13"></line>
+                <line x1="4" y1="18" x2="20" y2="18"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+            </svg>
+            <span id="etiquetaMenuPisos">EXTERIOR</span>
+        </button>
+        <div id="menuPisos" hidden>
+            <button class="boton-piso" data-piso="N00">N00</button>
+            <button class="boton-piso" data-piso="N01">N01</button>
+            <button class="boton-piso" data-piso="N02">N02</button>
+            <button class="boton-piso" data-piso="N03">N03</button>
+            <button class="boton-piso" data-piso="N04">N04</button>
+            <button class="boton-piso" data-piso="N05">N05</button>
+            <button class="boton-piso" data-piso="N06">N06</button>
+            <button class="boton-piso" data-piso="EXT">EXTERIOR</button>
+        </div>
+    </div>
+    <div id="panelMinimapa" hidden>
+        <div id="minimapaLienzo" hidden>
+            <img id="minimapaImagen" alt="">
+            <div id="minimapaMarcadores"></div>
+            <div id="minimapaJugador">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2 L19 21 L12 16.5 L5 21 Z"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div id="capaPov">
+        <div id="selectorVistas" hidden>
+            <button id="botonVistaAnterior" class="boton-selector-vista" aria-label="Vista anterior">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <div id="puntosVista"></div>
+            <button id="botonVistaSiguiente" class="boton-selector-vista" aria-label="Vista siguiente">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+        </div>
+        <div id="selectorModoNav" hidden>
+            <button id="botonModoCaminar" class="boton-modo-nav" data-modo="caminar" aria-label="Modo caminar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="4" r="2"></circle>
+                    <path d="M12 6v6M12 9l-3 3M12 9l3 3M12 12l-3 8M12 12l3 8"></path>
+                </svg>
+            </button>
+            <button id="botonModoVuelo" class="boton-modo-nav" data-modo="vuelo" aria-label="Modo vuelo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
+        <div id="ayudaNav">
+            <div id="panelAyudaNav" hidden></div>
+            <button id="botonAyudaNav" aria-label="Controles" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="17" x2="12" y2="11"></line>
+                    <line x1="12" y1="7.5" x2="12" y2="7.5"></line>
+                </svg>
+            </button>
+        </div>
+        <button id="botonAlternarSelectorVistas" aria-label="Mostrar selector de vistas" aria-pressed="true" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+        </button>
+        <button id="botonAlternarDivision" aria-label="Alternar mapa en pantalla dividida" aria-pressed="false" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+            </svg>
+        </button>
+        <button id="botonBajarExterior" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            <span>N00</span>
+        </button>
+    </div>
+
+    <div id="panelEditor" hidden>
+        <div class="encabezado-editor">Modo Edición</div>
+        <div id="lecturaEditor"></div>
+
+        <div class="etiqueta-seccion-editor">Punto de inicio</div>
+        <button id="botonSpawnAqui">Marcar inicio aquí</button>
+        <div id="estadoSpawn"></div>
+
+        <div class="etiqueta-seccion-editor">Vistas</div>
+        <button id="botonAgregarVista">+ Vista aquí</button>
+        <div id="listaVistas"></div>
+
+        <div class="etiqueta-seccion-editor">Portales</div>
+        <div class="fila-editor">
+            <button id="botonAccionPortal">Iniciar portal aquí</button>
+            <button id="botonCancelarPortal" hidden>Cancelar</button>
+        </div>
+        <div id="estadoPortal"></div>
+        <div id="listaPortales"></div>
+
+        <button id="botonExportar">Exportar cambios…</button>
+    </div>
+
+    <div id="modalExportar" hidden>
+        <div id="cajaModalExportar">
+            <p>El conjunto completo actual de vistas y portales. Pega esto en el manifiesto PISOS para los pisos correspondientes, reemplazando lo que haya.</p>
+            <textarea id="textoExportar" readonly></textarea>
+            <div class="fila-editor">
+                <button id="botonCopiarExportar">Copiar</button>
+                <button id="botonCerrarExportar">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<pc-app id="aplicacion" antialias="true" depth-buffer="false" max-pixel-ratio="2" stencil-buffer="false">
+    <script>
+        // Must run before the deferred module script below upgrades this element - antialias
+        // and pixel-ratio are fixed at context-creation time, so this is the only point a
+        // device-dependent value for them can take effect.
+        (function () {
+            var esMovil = /Android|iPhone|iPod|iPad|Mobile|Windows Phone/i.test(navigator.userAgent) ||
+                (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+            window.__esMovil = esMovil;
+            if (esMovil) {
+                var app = document.currentScript.parentElement;
+                app.setAttribute('antialias', 'false');
+                app.setAttribute('max-pixel-ratio', '1');
+            }
+        })();
+    </script>
+    <pc-scene>
+        <pc-entity name="raiz-camara">
+            <pc-entity name="camara" position="0 1.6 4">
+                <pc-camera near-clip="0.02" far-clip="1000" fov="65" clear-color="0.04 0.04 0.05 1"></pc-camera>
+            </pc-entity>
+        </pc-entity>
+
+        <pc-entity id="raizPiso" name="raizPiso"></pc-entity>
+    </pc-scene>
+</pc-app>
+
+<script type="module">
+    import * as pc from 'playcanvas';
+
+    const PISOS = {
+        DEPARTAMENTO: {
+            etiqueta: 'Departamento 04',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/561b93af/v1/lod-meta.json',
+            voxel: {
+                json: 'https://s3-eu-west-1.amazonaws.com/splats.playcanvas.com/561b93af/v1/scene.voxel.json',
+                bin: 'https://s3-eu-west-1.amazonaws.com/splats.playcanvas.com/561b93af/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [0.125, 1.29, 0.154], rotacion: [3.1, -103.6, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [0.125, 1.29, 0.154], rotacion: [3.1, -103.6, 0] },
+                { etiqueta: 'v2', posicion: [3.7, 3.733, -1.7], rotacion: [-20, -223.7, 0] },
+                { etiqueta: 'v3', posicion: [2.351, 1.3, -0.859], rotacion: [-14.4, -72.1, 0] }
+            ],
+            portales: []
+        }
+    };
+
+    const EPSILON_PENETRACION = 1e-4;
+    const MAX_ITERACIONES_RESOLUCION = 4;
+
+    function resolverIterativo(cx, cy, cz, encontrarPenetracion, normalesRestriccion, temporal, salida) {
+        let rx = cx, ry = cy, rz = cz;
+        let totalX = 0, totalY = 0, totalZ = 0;
+        let huboColision = false;
+        let numNormales = 0;
+
+        for (let iter = 0; iter < MAX_ITERACIONES_RESOLUCION; iter++) {
+            if (!encontrarPenetracion(rx, ry, rz, temporal)) break;
+            huboColision = true;
+
+            let px = temporal.x, py = temporal.y, pz = temporal.z;
+            for (let i = 0; i < numNormales; i++) {
+                const n = normalesRestriccion[i];
+                const dot = px * n.x + py * n.y + pz * n.z;
+                if (dot < 0) { px -= dot * n.x; py -= dot * n.y; pz -= dot * n.z; }
+            }
+
+            const len = Math.sqrt(temporal.x * temporal.x + temporal.y * temporal.y + temporal.z * temporal.z);
+            if (len > EPSILON_PENETRACION && numNormales < 3) {
+                const inv = 1 / len;
+                const n = normalesRestriccion[numNormales];
+                n.x = temporal.x * inv; n.y = temporal.y * inv; n.z = temporal.z * inv;
+                numNormales++;
+            }
+
+            rx += px; ry += py; rz += pz;
+            totalX += px; totalY += py; totalZ += pz;
+        }
+
+        const totalSq = totalX * totalX + totalY * totalY + totalZ * totalZ;
+        if (huboColision && totalSq > EPSILON_PENETRACION * EPSILON_PENETRACION) {
+            salida.x = totalX; salida.y = totalY; salida.z = totalZ;
+            return true;
+        }
+        return false;
+    }
+
+    class GrillaVoxel {
+        static async cargar(urls, offset) {
+            const [meta, buf] = await Promise.all([
+                fetch(urls.json).then(r => r.json()),
+                fetch(urls.bin).then(r => r.arrayBuffer())
+            ]);
+            const nodos = new Uint32Array(buf, 0, meta.nodeCount);
+            const datosHoja = new Uint32Array(buf, meta.nodeCount * 4, meta.leafDataCount);
+            const grilla = new GrillaVoxel(meta, nodos, datosHoja, offset);
+            if (urls.rotated === false) grilla.rotado = false;
+            return grilla;
+        }
+
+        constructor(meta, nodos, datosHoja, offset = [0, 0, 0]) {
+            this.minimo = meta.gridBounds.min;
+            this.maximo = meta.gridBounds.max;
+            this.limitesEscena = meta.sceneBounds || null;
+            this.resolucion = meta.voxelResolution;
+            this.tamanoHoja = meta.leafSize;
+            this.profundidadArbol = meta.treeDepth;
+            this.expansion = meta.leafSize * (1 << meta.treeDepth);
+            this.nodos = nodos;
+            this.datosHoja = datosHoja;
+            this.rotado = true;
+            this.offset = offset;
+
+            this.minimoEfectivo = this.minimo;
+            this.maximoEfectivo = this.maximo;
+            if (meta.sceneBounds) {
+                this.minimoEfectivo = [
+                    Math.max(this.minimo[0], meta.sceneBounds.min[0]),
+                    Math.max(this.minimo[1], meta.sceneBounds.min[1]),
+                    Math.max(this.minimo[2], meta.sceneBounds.min[2])
+                ];
+                this.maximoEfectivo = [
+                    Math.min(this.maximo[0], meta.sceneBounds.max[0]),
+                    Math.min(this.maximo[1], meta.sceneBounds.max[1]),
+                    Math.min(this.maximo[2], meta.sceneBounds.max[2])
+                ];
+            }
+
+            this.numVoxelsX = Math.round((this.maximo[0] - this.minimo[0]) / this.resolucion);
+            this.numVoxelsY = Math.round((this.maximo[1] - this.minimo[1]) / this.resolucion);
+            this.numVoxelsZ = Math.round((this.maximo[2] - this.minimo[2]) / this.resolucion);
+            this._temporalPenetracion = { x: 0, y: 0, z: 0 };
+            this._empujeEspacioGrilla = { x: 0, y: 0, z: 0 };
+            this._normalesRestriccion = [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }];
+        }
+
+        transformar(wx0, wy0, wz0) {
+            if (this.rotado) {
+                return [-wx0 + this.offset[0], wy0 + this.offset[1], -wz0 + this.offset[2]];
+            }
+            return [wx0 + this.offset[0], wy0 + this.offset[1], wz0 + this.offset[2]];
+        }
+
+        transformarInverso(vx0, vy0, vz0) {
+            const ux = vx0 - this.offset[0];
+            const uy = vy0 - this.offset[1];
+            const uz = vz0 - this.offset[2];
+            return this.rotado ? [-ux, uy, -uz] : [ux, uy, uz];
+        }
+
+        transformarDireccion(dx, dy, dz) {
+            return this.rotado ? [-dx, dy, -dz] : [dx, dy, dz];
+        }
+
+        esSolido(wx0, wy0, wz0, fueraEsSolido = true, margenLimites = 0) {
+            const [wx, wy, wz] = this.transformar(wx0, wy0, wz0);
+            if (wx < this.minimoEfectivo[0] + margenLimites || wx > this.maximoEfectivo[0] - margenLimites ||
+                wy < this.minimoEfectivo[1] + margenLimites || wy > this.maximoEfectivo[1] - margenLimites ||
+                wz < this.minimoEfectivo[2] + margenLimites || wz > this.maximoEfectivo[2] - margenLimites) {
+                return fueraEsSolido;
+            }
+
+            const vx = Math.floor((wx - this.minimo[0]) / this.resolucion);
+            const vy = Math.floor((wy - this.minimo[1]) / this.resolucion);
+            const vz = Math.floor((wz - this.minimo[2]) / this.resolucion);
+            return this._esSolidoIndice(vx, vy, vz);
+        }
+
+        _esSolidoIndice(vx, vy, vz) {
+            let idx = 0;
+            let tamanoCelda = this.expansion;
+            let ox = 0, oy = 0, oz = 0;
+
+            for (let nivel = 0; nivel <= this.profundidadArbol; nivel++) {
+                const palabra = this.nodos[idx];
+                if (palabra === 0xFF000000) return true;
+                if ((palabra >>> 24) === 0) {
+                    const lx = vx - ox, ly = vy - oy, lz = vz - oz;
+                    const bit = lx + (ly << 2) + (lz << 4);
+                    const lo = this.datosHoja[2 * palabra];
+                    const hi = this.datosHoja[2 * palabra + 1];
+                    return bit < 32 ? ((lo >>> bit) & 1) === 1 : ((hi >>> (bit - 32)) & 1) === 1;
+                }
+
+                const mascaraHijos = palabra >>> 24;
+                const primerHijo = palabra & 0xFFFFFF;
+                const mitad = tamanoCelda >> 1;
+                const bx = vx >= ox + mitad ? 1 : 0;
+                const by = vy >= oy + mitad ? 1 : 0;
+                const bz = vz >= oz + mitad ? 1 : 0;
+                const oct = bx | (by << 1) | (bz << 2);
+
+                if (!((mascaraHijos >> oct) & 1)) return false;
+
+                let popcount = 0;
+                for (let b = 0; b < oct; b++) popcount += (mascaraHijos >> b) & 1;
+                idx = primerHijo + popcount;
+                tamanoCelda = mitad;
+                ox += bx * mitad; oy += by * mitad; oz += bz * mitad;
+            }
+            return false;
+        }
+
+        _esVoxelSolido(vx, vy, vz) {
+            if (vx < 0 || vy < 0 || vz < 0 || vx >= this.numVoxelsX || vy >= this.numVoxelsY || vz >= this.numVoxelsZ) {
+                return false;
+            }
+            return this._esSolidoIndice(vx, vy, vz);
+        }
+
+        consultarRayo(ox0, oy0, oz0, dx0, dy0, dz0, distMax) {
+            const [ox, oy, oz] = this.transformar(ox0, oy0, oz0);
+            const [dx, dy, dz] = this.transformarDireccion(dx0, dy0, dz0);
+
+            const gMinX = this.minimo[0], gMinY = this.minimo[1], gMinZ = this.minimo[2];
+            const gMaxX = this.maximo[0], gMaxY = this.maximo[1], gMaxZ = this.maximo[2];
+            const EPS = 1e-12;
+
+            let tCerca = 0, tLejos = distMax;
+
+            if (Math.abs(dx) > EPS) {
+                let t1 = (gMinX - ox) / dx, t2 = (gMaxX - ox) / dx;
+                if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+                if (t1 > tCerca) tCerca = t1;
+                tLejos = Math.min(tLejos, t2);
+                if (tCerca > tLejos) return null;
+            } else if (ox < gMinX || ox > gMaxX) {
+                return null;
+            }
+
+            if (Math.abs(dy) > EPS) {
+                let t1 = (gMinY - oy) / dy, t2 = (gMaxY - oy) / dy;
+                if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+                if (t1 > tCerca) tCerca = t1;
+                tLejos = Math.min(tLejos, t2);
+                if (tCerca > tLejos) return null;
+            } else if (oy < gMinY || oy > gMaxY) {
+                return null;
+            }
+
+            if (Math.abs(dz) > EPS) {
+                let t1 = (gMinZ - oz) / dz, t2 = (gMaxZ - oz) / dz;
+                if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+                if (t1 > tCerca) tCerca = t1;
+                tLejos = Math.min(tLejos, t2);
+                if (tCerca > tLejos) return null;
+            } else if (oz < gMinZ || oz > gMaxZ) {
+                return null;
+            }
+
+            const entradaX = ox + dx * tCerca, entradaY = oy + dy * tCerca, entradaZ = oz + dz * tCerca;
+            let ix = Math.max(0, Math.min(Math.floor((entradaX - gMinX) / this.resolucion), this.numVoxelsX - 1));
+            let iy = Math.max(0, Math.min(Math.floor((entradaY - gMinY) / this.resolucion), this.numVoxelsY - 1));
+            let iz = Math.max(0, Math.min(Math.floor((entradaZ - gMinZ) / this.resolucion), this.numVoxelsZ - 1));
+
+            const pasoX = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+            const pasoY = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+            const pasoZ = dz > 0 ? 1 : dz < 0 ? -1 : 0;
+            const invDx = Math.abs(dx) > EPS ? 1 / dx : 0;
+            const invDy = Math.abs(dy) > EPS ? 1 / dy : 0;
+            const invDz = Math.abs(dz) > EPS ? 1 / dz : 0;
+
+            let tMaxX = Math.abs(dx) > EPS ? (gMinX + (ix + (dx > 0 ? 1 : 0)) * this.resolucion - ox) * invDx : Infinity;
+            let tMaxY = Math.abs(dy) > EPS ? (gMinY + (iy + (dy > 0 ? 1 : 0)) * this.resolucion - oy) * invDy : Infinity;
+            let tMaxZ = Math.abs(dz) > EPS ? (gMinZ + (iz + (dz > 0 ? 1 : 0)) * this.resolucion - oz) * invDz : Infinity;
+            const tDeltaX = Math.abs(dx) > EPS ? this.resolucion * Math.abs(invDx) : Infinity;
+            const tDeltaY = Math.abs(dy) > EPS ? this.resolucion * Math.abs(invDy) : Infinity;
+            const tDeltaZ = Math.abs(dz) > EPS ? this.resolucion * Math.abs(invDz) : Infinity;
+
+            let tActual = tCerca;
+            const pasosMax = this.numVoxelsX + this.numVoxelsY + this.numVoxelsZ;
+
+            for (let paso = 0; paso < pasosMax; paso++) {
+                if (this._esVoxelSolido(ix, iy, iz)) {
+                    const hx = ox + dx * tActual, hy = oy + dy * tActual, hz = oz + dz * tActual;
+                    const [wx, wy, wz] = this.transformarInverso(hx, hy, hz);
+                    return { x: wx, y: wy, z: wz };
+                }
+
+                if (tMaxX < tMaxY) {
+                    if (tMaxX < tMaxZ) { tActual = tMaxX; ix += pasoX; tMaxX += tDeltaX; }
+                    else { tActual = tMaxZ; iz += pasoZ; tMaxZ += tDeltaZ; }
+                } else if (tMaxY < tMaxZ) {
+                    tActual = tMaxY; iy += pasoY; tMaxY += tDeltaY;
+                } else {
+                    tActual = tMaxZ; iz += pasoZ; tMaxZ += tDeltaZ;
+                }
+
+                if (ix < 0 || iy < 0 || iz < 0 || ix >= this.numVoxelsX || iy >= this.numVoxelsY || iz >= this.numVoxelsZ || tActual > distMax) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        consultarCapsula(cx0, cy0, cz0, mitadAltura, radio, salida) {
+            if (this.nodos.length === 0) return false;
+            const [cx, cy, cz] = this.transformar(cx0, cy0, cz0);
+            const encontrado = resolverIterativo(
+                cx, cy, cz,
+                (rx, ry, rz, empuje) => this._resolverPenetracionMasProfundaCapsula(rx, ry, rz, mitadAltura, radio, empuje),
+                this._normalesRestriccion,
+                this._temporalPenetracion,
+                this._empujeEspacioGrilla
+            );
+            if (encontrado) {
+                const [wx, wy, wz] = this.transformarDireccion(this._empujeEspacioGrilla.x, this._empujeEspacioGrilla.y, this._empujeEspacioGrilla.z);
+                salida.x = wx; salida.y = wy; salida.z = wz;
+            }
+            return encontrado;
+        }
+
+        _resolverPenetracionMasProfundaCapsula(cx, cy, cz, mitadAltura, radio, salida) {
+            const res = this.resolucion, gMinX = this.minimo[0], gMinY = this.minimo[1], gMinZ = this.minimo[2];
+            const radioCuad = radio * radio;
+            const segAbajoY = cy - mitadAltura, segArribaY = cy + mitadAltura;
+
+            const ixMin = Math.floor((cx - radio - gMinX) / res);
+            const iyMin = Math.floor((segAbajoY - radio - gMinY) / res);
+            const izMin = Math.floor((cz - radio - gMinZ) / res);
+            const ixMax = Math.floor((cx + radio - gMinX) / res);
+            const iyMax = Math.floor((segArribaY + radio - gMinY) / res);
+            const izMax = Math.floor((cz + radio - gMinZ) / res);
+
+            let mejorEmpujeX = 0, mejorEmpujeY = 0, mejorEmpujeZ = 0, mejorPenetracion = EPSILON_PENETRACION, encontrado = false;
+
+            for (let iz = izMin; iz <= izMax; iz++) {
+                for (let iy = iyMin; iy <= iyMax; iy++) {
+                    for (let ix = ixMin; ix <= ixMax; ix++) {
+                        if (!this._esVoxelSolido(ix, iy, iz)) continue;
+
+                        const vMinX = gMinX + ix * res, vMinY = gMinY + iy * res, vMinZ = gMinZ + iz * res;
+                        const vMaxX = vMinX + res, vMaxY = vMinY + res, vMaxZ = vMinZ + res;
+
+                        let segY;
+                        if (segArribaY < vMinY) segY = segArribaY;
+                        else if (segAbajoY > vMaxY) segY = segAbajoY;
+                        else segY = Math.max(segAbajoY, Math.min(segArribaY, (vMinY + vMaxY) * 0.5));
+
+                        const cercaX = Math.max(vMinX, Math.min(cx, vMaxX));
+                        const cercaY = Math.max(vMinY, Math.min(segY, vMaxY));
+                        const cercaZ = Math.max(vMinZ, Math.min(cz, vMaxZ));
+
+                        const dx = cx - cercaX, dy = segY - cercaY, dz = cz - cercaZ;
+                        const distCuad = dx * dx + dy * dy + dz * dz;
+                        if (distCuad >= radioCuad) continue;
+
+                        let px, py, pz, penetracion;
+                        if (distCuad > 1e-12) {
+                            const dist = Math.sqrt(distCuad);
+                            penetracion = radio - dist;
+                            const invDist = 1 / dist;
+                            px = dx * invDist * penetracion;
+                            py = dy * invDist * penetracion;
+                            pz = dz * invDist * penetracion;
+                        } else {
+                            const distNegX = cx - vMinX, distPosX = vMaxX - cx;
+                            const distNegY = segY - vMinY, distPosY = vMaxY - segY;
+                            const distNegZ = cz - vMinZ, distPosZ = vMaxZ - cz;
+                            const escapeX = distNegX < distPosX ? -(distNegX + radio) : distPosX + radio;
+                            const escapeY = distNegY < distPosY ? -(distNegY + radio) : distPosY + radio;
+                            const escapeZ = distNegZ < distPosZ ? -(distNegZ + radio) : distPosZ + radio;
+                            const absX = Math.abs(escapeX), absY = Math.abs(escapeY), absZ = Math.abs(escapeZ);
+                            px = 0; py = 0; pz = 0;
+                            if (absX <= absY && absX <= absZ) { px = escapeX; penetracion = absX; }
+                            else if (absY <= absZ) { py = escapeY; penetracion = absY; }
+                            else { pz = escapeZ; penetracion = absZ; }
+                        }
+
+                        if (penetracion > mejorPenetracion) {
+                            mejorPenetracion = penetracion;
+                            mejorEmpujeX = px; mejorEmpujeY = py; mejorEmpujeZ = pz;
+                            encontrado = true;
+                        }
+                    }
+                }
+            }
+
+            if (encontrado) { salida.x = mejorEmpujeX; salida.y = mejorEmpujeY; salida.z = mejorEmpujeZ; }
+            return encontrado;
+        }
+    }
+
+    const CORRECCION_EJE_VERTICAL = '180 0 0';
+
+    let grillaVoxelActual = null;
+    let limitesPisoActual = null;
+
+    function esquinasALimitesMundo(minimo, maximo, grilla) {
+        let minX = Infinity, minY = Infinity, minZ = Infinity;
+        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+        for (const gx of [minimo[0], maximo[0]]) {
+            for (const gy of [minimo[1], maximo[1]]) {
+                for (const gz of [minimo[2], maximo[2]]) {
+                    const [wx, wy, wz] = grilla.transformarInverso(gx, gy, gz);
+                    minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
+                    minY = Math.min(minY, wy); maxY = Math.max(maxY, wy);
+                    minZ = Math.min(minZ, wz); maxZ = Math.max(maxZ, wz);
+                }
+            }
+        }
+        return { minimo: [minX, minY, minZ], maximo: [maxX, maxY, maxZ] };
+    }
+
+    function calcularLimitesMundo(grilla) {
+        const limites = esquinasALimitesMundo(grilla.minimo, grilla.maximo, grilla);
+        if (!grilla.limitesEscena) return limites;
+        const escena = esquinasALimitesMundo(grilla.limitesEscena.min, grilla.limitesEscena.max, grilla);
+        return {
+            minimo: [Math.max(limites.minimo[0], escena.minimo[0]), Math.max(limites.minimo[1], escena.minimo[1]), Math.max(limites.minimo[2], escena.minimo[2])],
+            maximo: [Math.min(limites.maximo[0], escena.maximo[0]), Math.min(limites.maximo[1], escena.maximo[1]), Math.min(limites.maximo[2], escena.maximo[2])]
+        };
+    }
+
+    // camera.worldToScreen() returns canvas-local pixels, but marker elements live in #interfaz
+    // which is fixed to the full viewport - those coincide when the canvas fills the screen, but
+    // not in split-screen mode where the canvas is pushed down into the bottom half. Updated once
+    // per frame (the canvas's own page offset, currently always 0 horizontally since it's always
+    // full-width) and added to every worldToScreen-derived Y coordinate below.
+    let desplazamientoCanvasSuperior = 0;
+
+    let marcadoresPortalActivos = [];
+    const elementoMarcadoresPortal = document.getElementById('marcadoresPortal');
+    const posPantallaPortal = new pc.Vec3();
+    const vectorPortalAMarcador = new pc.Vec3();
+
+    function limpiarMarcadoresPortal() {
+        marcadoresPortalActivos.forEach(m => m.el.remove());
+        marcadoresPortalActivos = [];
+    }
+
+    function crearMarcadoresPortal(piso) {
+        piso.portales.forEach(portal => {
+            const el = document.createElement('div');
+            el.className = 'marcador-portal marcador-oculto';
+            el.innerHTML = `<svg class="icono-marcador-portal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="1"></rect><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"></circle></svg><span>${portal.destino}</span>`;
+            el.addEventListener('click', () => cargarPiso(portal.destino, portal.llegada));
+            elementoMarcadoresPortal.appendChild(el);
+            marcadoresPortalActivos.push({ el, posMundo: new pc.Vec3(...portal.posMundo) });
+        });
+    }
+
+    // Without this, a marker shows the instant it's in front of the camera regardless of what's
+    // between you and it - portal/view markers from other rooms bleed straight through walls,
+    // which is most of what made walking around feel cluttered. A short raycast against the same
+    // voxel collision grid already used for walking/click-to-walk settles it: if something solid
+    // sits between the camera and the marker, hide it.
+    // The 0.15 clearance below was sized for interior room scales. On EXT, view markers sit
+    // partway between the orbit pivot and each view's real vantage point (see
+    // FRACCION_DISTANCIA_MARCADOR_ORBITA), which can land them fairly close to the building's own
+    // exterior mass - at that tighter clearance, the ray can clip the building surface right near
+    // the marker's own endpoint depending on the exact viewing angle, occluding it inconsistently
+    // rather than only when something genuinely blocks the view. A much larger margin at building
+    // scale gives it real room to clear the marker's own vicinity.
+    const MARGEN_OCLUSION_MARCADOR = 0.15;
+    const MARGEN_OCLUSION_MARCADOR_ORBITA = 2;
+    function marcadorOculto(posCamara, posMundo) {
+        if (!grillaVoxelActual) return false;
+        // Off for orbit (EXT) - the occlusion raycast against the exterior mass was hiding view
+        // buttons inconsistently depending on orbit angle, more distracting than the clutter it
+        // was meant to prevent. Interior floors keep it.
+        if (modoNavActual === 'orbita') return false;
+        const margen = modoNavActual === 'orbita' ? MARGEN_OCLUSION_MARCADOR_ORBITA : MARGEN_OCLUSION_MARCADOR;
+        const dx = posMundo.x - posCamara.x, dy = posMundo.y - posCamara.y, dz = posMundo.z - posCamara.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const distConsulta = dist - margen;
+        if (distConsulta <= 0) return false;
+        return !!grillaVoxelActual.consultarRayo(posCamara.x, posCamara.y, posCamara.z, dx / dist, dy / dist, dz / dist, distConsulta);
+    }
+
+    function actualizarPosicionesMarcadoresPortal(camara) {
+        if (marcadoresPortalActivos.length === 0) return;
+        const posCamara = camara.getPosition();
+        marcadoresPortalActivos.forEach(({ el, posMundo }) => {
+            vectorPortalAMarcador.sub2(posMundo, posCamara);
+            if (vectorPortalAMarcador.dot(camara.forward) <= 0 || marcadorOculto(posCamara, posMundo)) {
+                el.classList.add('marcador-oculto');
+                return;
+            }
+            camara.camera.worldToScreen(posMundo, posPantallaPortal);
+            el.style.left = `${posPantallaPortal.x}px`;
+            el.style.top = `${posPantallaPortal.y + desplazamientoCanvasSuperior}px`;
+            el.classList.remove('marcador-oculto');
+        });
+    }
+
+    // Loaded via the JS asset API rather than declarative <pc-sky>/<pc-asset> tags: the engine's
+    // HDR parser doesn't set the loaded texture's `projection` to equirectangular on its own (only
+    // the addressing modes), and <pc-asset> has no attribute to set that either - without it,
+    // EnvLighting.generateSkyboxCubemap silently reprojects using the wrong sampling function.
+    const URL_CIELO_HDRI = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_48d_partly_cloudy_puresky_2k.hdr';
+    // Kept around (rather than just assigning straight to scene.skybox) so every later floor
+    // switch can hide/restore the same cubemap around its own loading window, instead of only the
+    // very first load ever bothering to time this.
+    let cuboMapaCielo = null;
+
+    function configurarCielo(app) {
+        const activo = new pc.Asset('cielo-hdri', 'texture', { url: URL_CIELO_HDRI });
+        app.assets.add(activo);
+        activo.ready(() => {
+            const textura = activo.resource;
+            textura.projection = pc.TEXTUREPROJECTION_EQUIRECT;
+            // 1024 (not the tiny 128 the earlier 1px-wide procedural gradient used) - a real 2K
+            // photographic HDRI viewed directly as the background needs real resolution, unlike a
+            // flat gradient where any size looked identical.
+            cuboMapaCielo = pc.EnvLighting.generateSkyboxCubemap(textura, 1024);
+            app.scene.skybox = cuboMapaCielo;
+            app.scene.skyboxIntensity = 1;
+            // 'dome' was tried to see if it allowed repositioning the horizon, but its geometry
+            // is a shallow saucer that barely extends below its own origin (built assuming a
+            // normal game world with ground at Y≈0) - our floors have very different, sometimes
+            // deeply negative, local Y ranges, so the camera ends up outside the mesh on some
+            // floors and the sky disappears entirely (front-face culling means nothing renders
+            // from outside it). 'infinite' is direction-only and always works regardless of
+            // camera position; the horizon-height request isn't achievable this way.
+        });
+        activo.once('error', (err) => console.error('No se pudo cargar el cielo HDRI:', err));
+        app.assets.load(activo);
+    }
+
+    function numeroPiso(id) {
+        if (id === 'EXT') return Infinity;
+        const m = /N(\d+)/.exec(id);
+        return m ? parseInt(m[1], 10) : NaN;
+    }
+
+    function etiquetaPiso(id) {
+        return id === 'EXT' ? 'EXTERIOR' : id;
+    }
+
+    const panelMinimapa = document.getElementById('panelMinimapa');
+    const minimapaLienzo = document.getElementById('minimapaLienzo');
+    const minimapaImagen = document.getElementById('minimapaImagen');
+    const minimapaMarcadores = document.getElementById('minimapaMarcadores');
+    const minimapaJugador = document.getElementById('minimapaJugador');
+    const minimapaVertical = document.getElementById('minimapaVertical');
+    const botonPisoArriba = document.getElementById('botonPisoArriba');
+    const botonPisoAbajo = document.getElementById('botonPisoAbajo');
+    const botonBajarExterior = document.getElementById('botonBajarExterior');
+
+    let limitesMinimapaActual = null;
+
+    function mundoAFraccionMinimapa(x, z) {
+        const b = limitesMinimapaActual;
+        return { u: (x - b.minX) / (b.maxX - b.minX), v: (z - b.minZ) / (b.maxZ - b.minZ) };
+    }
+
+    function crearMarcadorMinimapa(claseExtra, iconoSvg, posicionMundo, onClick, titulo) {
+        const el = document.createElement('button');
+        el.className = `marcador-mini ${claseExtra}`;
+        el.innerHTML = iconoSvg;
+        el.title = titulo;
+        const { u, v } = mundoAFraccionMinimapa(posicionMundo[0], posicionMundo[2]);
+        el.style.left = `${u * 100}%`;
+        el.style.top = `${v * 100}%`;
+        // Without stopping propagation, a marker click would also bubble up and trigger the
+        // click-anywhere-to-move-there handler on the minimap underneath it.
+        el.addEventListener('click', (e) => { e.stopPropagation(); onClick(e); });
+        minimapaMarcadores.appendChild(el);
+    }
+
+    const ICONO_MINIMAPA_VISTA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+
+    function actualizarMinimapa(id) {
+        const piso = PISOS[id];
+        minimapaMarcadores.innerHTML = '';
+        limitesMinimapaActual = null;
+
+        const nivelActual = numeroPiso(id);
+        const portalArriba = piso.portales.find((p) => numeroPiso(p.destino) > nivelActual);
+        const portalAbajo = piso.portales.find((p) => numeroPiso(p.destino) < nivelActual);
+        botonPisoArriba.hidden = !portalArriba;
+        botonPisoAbajo.hidden = !portalAbajo;
+        botonPisoArriba.onclick = portalArriba ? () => cargarPiso(portalArriba.destino, portalArriba.llegada) : null;
+        botonPisoAbajo.onclick = portalAbajo ? () => cargarPiso(portalAbajo.destino, portalAbajo.llegada) : null;
+        if (portalArriba) botonPisoArriba.title = etiquetaPiso(portalArriba.destino);
+        if (portalAbajo) botonPisoAbajo.title = etiquetaPiso(portalAbajo.destino);
+        // Removed on the exterior/orbit view - EXT already has its own 3D portal marker back down
+        // to N00, so the chip was a second, redundant way to do the same thing there.
+        minimapaVertical.hidden = piso.modoNav === 'orbita' || (!portalArriba && !portalAbajo);
+
+        // The exterior view instead gets a dedicated bottom-right button for the same portal -
+        // its 3D marker can be anywhere on the building depending on orbit angle, so a fixed,
+        // always-visible way back down is worth the redundancy there specifically.
+        botonBajarExterior.hidden = piso.modoNav !== 'orbita' || !portalAbajo;
+        botonBajarExterior.onclick = portalAbajo ? () => cargarPiso(portalAbajo.destino, portalAbajo.llegada) : null;
+
+        if (piso.minimapa && limitesPisoActual) {
+            minimapaLienzo.hidden = false;
+            minimapaImagen.src = piso.minimapa.src;
+            const [minX, , minZ] = limitesPisoActual.minimo;
+            const [maxX, , maxZ] = limitesPisoActual.maximo;
+            limitesMinimapaActual = { minX, maxX, minZ, maxZ };
+            minimapaLienzo.style.aspectRatio = `${maxX - minX} / ${maxZ - minZ}`;
+
+            (piso.vistas || []).forEach((vista) => {
+                const posicionVista = posicionMundoVista(piso, vista);
+                if (!posicionVista) return;
+                crearMarcadorMinimapa('marcador-mini-vista', ICONO_MINIMAPA_VISTA, posicionVista, () => saltarAVista(vista), vista.etiqueta);
+            });
+        } else {
+            minimapaLienzo.hidden = true;
+        }
+
+        panelMinimapaTieneContenido = !minimapaLienzo.hidden;
+        actualizarModoDividido();
+    }
+
+    // Mobile-only: stacks the minimap below the 3D view instead of floating it in a corner over
+    // the view. On by default - the visitor can still collapse it back with #botonAlternarDivision,
+    // at which point the panel is fully hidden (not the old floating corner box). The up/down
+    // floor chips live in #selectorPisos now, independent of this, so floor switching still works
+    // while the minimap itself is hidden.
+    let modoDivididoActivo = true;
+    let panelMinimapaTieneContenido = false;
+    const botonAlternarDivision = document.getElementById('botonAlternarDivision');
+
+    function actualizarModoDividido() {
+        const activo = !!window.__esMovil && panelMinimapaTieneContenido && modoDivididoActivo;
+        botonAlternarDivision.hidden = !window.__esMovil || !panelMinimapaTieneContenido;
+        document.body.classList.toggle('modo-dividido', activo);
+        panelMinimapa.hidden = window.__esMovil ? !activo : !panelMinimapaTieneContenido;
+        botonAlternarDivision.setAttribute('aria-pressed', String(modoDivididoActivo));
+    }
+
+    botonAlternarDivision.addEventListener('click', () => {
+        modoDivididoActivo = !modoDivididoActivo;
+        actualizarModoDividido();
+    });
+
+    function actualizarJugadorMinimapa(camara) {
+        if (!limitesMinimapaActual) return;
+        const pos = camara.getPosition();
+        const { u, v } = mundoAFraccionMinimapa(pos.x, pos.z);
+        const angulo = Math.atan2(camara.forward.x, -camara.forward.z) * (180 / Math.PI);
+        minimapaJugador.style.left = `${Math.min(1, Math.max(0, u)) * 100}%`;
+        minimapaJugador.style.top = `${Math.min(1, Math.max(0, v)) * 100}%`;
+        minimapaJugador.style.transform = `translate(-50%, -50%) rotate(${angulo}deg)`;
+    }
+
+    // Click anywhere on the minimap (not on a marker - those stop propagation) to move there.
+    // A walked path (setting objetivoNav, like the 3D click-to-walk cursor) doesn't work here -
+    // the target can be in a different room, with walls in between the current position and the
+    // clicked point that pathing has no way to route around. Teleporting directly sidesteps that
+    // entirely, in both 'caminar' and 'vuelo', reusing the exact same reset used when a portal or
+    // a fresh floor load positions the camera.
+    minimapaLienzo.addEventListener('click', (e) => {
+        if (!limitesMinimapaActual || (modoNavActual !== 'caminar' && modoNavActual !== 'vuelo')) return;
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        if (!camara) return;
+        const rect = minimapaLienzo.getBoundingClientRect();
+        const u = (e.clientX - rect.left) / rect.width;
+        const v = (e.clientY - rect.top) / rect.height;
+        const b = limitesMinimapaActual;
+        const x = b.minX + u * (b.maxX - b.minX);
+        const z = b.minZ + v * (b.maxZ - b.minZ);
+        const y = camara.getPosition().y;
+        camara.setPosition(x, y, z);
+        if (modoNavActual === 'caminar') {
+            objetivoNav = null;
+            ocultarAnilloNav();
+            reiniciarEstadoCaminar(new pc.Vec3(x, y, z));
+        }
+    });
+
+    const MARGEN_LIMITES_VUELO = 1.3;
+
+    function intentarMover(camara, dx, dy, dz) {
+        const pos = camara.getPosition();
+        if (!grillaVoxelActual) {
+            camara.translate(dx, dy, dz);
+            return;
+        }
+        let { x, y, z } = pos;
+        if (!grillaVoxelActual.esSolido(x + dx, y, z, true, MARGEN_LIMITES_VUELO)) x += dx;
+        if (!grillaVoxelActual.esSolido(x, y + dy, z, true, MARGEN_LIMITES_VUELO)) y += dy;
+        if (!grillaVoxelActual.esSolido(x, y, z + dz, true, MARGEN_LIMITES_VUELO)) z += dz;
+        camara.setPosition(x, y, z);
+    }
+
+    let pisoActual = null;
+    let recursoActual = null;
+    let entidadPisoActual = null;
+
+    const raizPiso = document.getElementById('raizPiso');
+    const elementoApp = document.getElementById('aplicacion');
+    const elementoCarga = document.getElementById('cargando');
+    const elementoTransicion = document.getElementById('transicion');
+
+    function establecerBotonActivo(id) {
+        document.querySelectorAll('.boton-piso').forEach(btn => {
+            btn.classList.toggle('activo', btn.dataset.piso === id);
+        });
+        document.getElementById('etiquetaMenuPisos').textContent = id === 'EXT' ? 'EXTERIOR' : id;
+    }
+
+    async function cargarPiso(id, llegada) {
+        if (id === pisoActual) return;
+        const piso = PISOS[id];
+        if (!piso) return;
+
+        elementoTransicion.classList.add('activo');
+        await new Promise(r => setTimeout(r, 350));
+
+        elementoCarga.classList.remove('oculto');
+        // Hidden for every floor switch, not just the first ever load - otherwise, once the sky is
+        // configured, it stays assigned and shows straight through any gaps in the new floor's
+        // geometry while it's still loading/streaming in, instead of waiting for the reveal.
+        elementoApp.app.scene.skybox = null;
+
+        if (entidadPisoActual) entidadPisoActual.remove();
+        if (recursoActual) recursoActual.remove();
+        entidadPisoActual = null;
+        recursoActual = null;
+        grillaVoxelActual = null;
+        limpiarMarcadoresPortal();
+
+        const recurso = document.createElement('pc-asset');
+        recurso.id = `recurso-${id}`;
+        recurso.setAttribute('type', 'gsplat');
+        recurso.setAttribute('src', piso.fuente);
+        elementoApp.appendChild(recurso);
+
+        const recursoCargado = new Promise((resolve) => {
+            recurso.addEventListener('load', resolve, { once: true });
+            recurso.addEventListener('error', (e) => {
+                console.error(`No se pudo cargar ${id}:`, e.message);
+                resolve();
+            }, { once: true });
+        });
+        const voxelCargado = piso.voxel
+            ? GrillaVoxel.cargar(piso.voxel, piso.voxel.offset).catch((err) => {
+                console.error(`Falló la colisión de voxeles para ${id}:`, err);
+                return null;
+            })
+            : Promise.resolve(null);
+
+        const [, grillaVoxel] = await Promise.all([recursoCargado, voxelCargado]);
+        grillaVoxelActual = grillaVoxel;
+        limitesPisoActual = grillaVoxel ? calcularLimitesMundo(grillaVoxel) : null;
+
+        const entidadPiso = document.createElement('pc-entity');
+        entidadPiso.setAttribute('name', `piso-${id}`);
+        entidadPiso.setAttribute('rotation', CORRECCION_EJE_VERTICAL);
+
+        const gsplat = document.createElement('pc-gsplat');
+        gsplat.setAttribute('asset', recurso.id);
+        if (window.__esMovil) {
+            // Tighter than the engine defaults (lod-base-distance 5, lod-multiplier 3) - detail
+            // falls off sooner as things get farther from the camera, so mobile renders fewer
+            // splats at any given moment without changing what's visible right in front of you.
+            gsplat.setAttribute('lod-base-distance', '3');
+            gsplat.setAttribute('lod-multiplier', '2.2');
+        }
+        entidadPiso.appendChild(gsplat);
+
+        raizPiso.appendChild(entidadPiso);
+
+        crearMarcadoresPortal(piso);
+        actualizarSelectorVistas(piso);
+        actualizarBotonAlternarSelectorVistas(piso);
+        calcularBloqueoPuertaCaminar(piso);
+
+        recursoActual = recurso;
+        entidadPisoActual = entidadPiso;
+        pisoActual = id;
+
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        modoNavActual = piso.modoNav || 'caminar';
+        transicionVista = null;
+        const panelAyudaNav = document.getElementById('panelAyudaNav');
+        if (modoNavActual === 'orbita') {
+            focoOrbita = { x: piso.focoOrbita[0], y: piso.focoOrbita[1], z: piso.focoOrbita[2] };
+            // Spawns fully zoomed out (the same cap the scroll-wheel zoom-out is clamped to)
+            // rather than piso.distanciaOrbita's fixed value, so the very first view of the
+            // building is the widest one instead of an arbitrary starting distance.
+            distanciaOrbita = obtenerDistanciaOrbitaMax();
+            holguraOrbita = piso.holguraOrbita ?? 3;
+            guiñadaOrbita = piso.inicioOrbita?.guiñada ?? 0;
+            cabeceoOrbita = piso.inicioOrbita?.cabeceo ?? 15;
+            if (camara) actualizarCamaraOrbita(camara);
+            autoRotandoExt = true;
+            // No pinch-to-zoom is wired up for touch, so mobile only actually gets the drag - the
+            // wheel listener that handles zoom elsewhere never fires from a touchscreen gesture.
+            panelAyudaNav.textContent = window.__esMovil ? 'Drag to orbit' : 'Drag to orbit · Scroll to zoom';
+        } else {
+            const pose = llegada || piso.inicioCamara;
+            if (camara) {
+                camara.setPosition(...pose.posicion);
+                camara.setEulerAngles(...pose.rotacion);
+                cabeceo = pose.rotacion[0];
+                guiñada = pose.rotacion[1];
+            }
+            reiniciarEstadoCaminar(new pc.Vec3(...pose.posicion));
+            objetivoNav = null;
+            ocultarAnilloNav();
+            // Mobile is always 'caminar' here (fly mode is blocked from ever being entered) and
+            // has no keyboard for WASD/Space/F - tap-to-walk (the same click-to-move raycast) and
+            // drag-to-look are what's actually available there.
+            panelAyudaNav.textContent = window.__esMovil
+                ? 'Drag to look · Tap ground to walk'
+                : modoNavActual === 'caminar'
+                    ? 'Drag to look · WASD to move · Space to jump · F for fly mode'
+                    : 'Drag to look · WASD to move · Scroll to speed up · F for walk mode';
+        }
+
+        establecerBotonActivo(id);
+        actualizarMinimapa(id);
+        actualizarSelectorModoNav();
+        if (MODO_EDICION) { actualizarUIPortal(); actualizarEstadoSpawn(); }
+        if (cuboMapaCielo) elementoApp.app.scene.skybox = cuboMapaCielo;
+        elementoCarga.classList.add('oculto');
+        elementoTransicion.classList.remove('activo');
+
+        // Streaming this floor's splats in is about to spike frame time on its own - give it a
+        // beat before ajustarSplatBudget starts judging steady-state performance again.
+        tiempoDesbloqueoEvaluacionBudget = performance.now() + GRACIA_TRAS_CARGA_PISO;
+        acumuladorDtBudget = 0;
+        acumuladorFramesBudget = 0;
+    }
+
+    const botonMenuPisos = document.getElementById('botonMenuPisos');
+    const menuPisos = document.getElementById('menuPisos');
+
+    function establecerMenuPisosAbierto(abierto) {
+        menuPisos.hidden = !abierto;
+        botonMenuPisos.setAttribute('aria-expanded', String(abierto));
+    }
+
+    botonMenuPisos.addEventListener('click', (e) => {
+        e.stopPropagation();
+        establecerMenuPisosAbierto(menuPisos.hidden);
+    });
+    document.addEventListener('click', (e) => {
+        if (!menuPisos.hidden && !menuPisos.contains(e.target) && e.target !== botonMenuPisos) {
+            establecerMenuPisosAbierto(false);
+        }
+    });
+
+    document.querySelectorAll('.boton-piso').forEach(btn => {
+        btn.addEventListener('click', () => {
+            cargarPiso(btn.dataset.piso);
+            establecerMenuPisosAbierto(false);
+        });
+    });
+
+    const botonAyudaNav = document.getElementById('botonAyudaNav');
+    const panelAyudaNav = document.getElementById('panelAyudaNav');
+
+    function establecerAyudaNavAbierta(abierta) {
+        panelAyudaNav.hidden = !abierta;
+        botonAyudaNav.setAttribute('aria-expanded', String(abierta));
+    }
+
+    botonAyudaNav.addEventListener('click', (e) => {
+        e.stopPropagation();
+        establecerAyudaNavAbierta(panelAyudaNav.hidden);
+    });
+    document.addEventListener('click', (e) => {
+        if (!panelAyudaNav.hidden && !panelAyudaNav.contains(e.target) && e.target !== botonAyudaNav) {
+            establecerAyudaNavAbierta(false);
+        }
+    });
+
+    const selectorModoNav = document.getElementById('selectorModoNav');
+    const botonModoCaminar = document.getElementById('botonModoCaminar');
+    const botonModoVuelo = document.getElementById('botonModoVuelo');
+    // Fly mode needs a mouse-and-keyboard-style pointer to be usable at all - on mobile it's just
+    // a dead button, so hide it and refuse to enter that mode by any other path (F key included).
+    if (window.__esMovil) botonModoVuelo.hidden = true;
+
+    function actualizarSelectorModoNav() {
+        // On mobile there's nothing to switch to (fly mode can't be entered there), so the walk
+        // icon would just be a dead button with no other mode to toggle against - hide the whole
+        // selector rather than leave a pointless single button in it.
+        const aplica = !window.__esMovil && (modoNavActual === 'caminar' || modoNavActual === 'vuelo');
+        selectorModoNav.hidden = !aplica;
+        botonModoCaminar.classList.toggle('activo', modoNavActual === 'caminar');
+        botonModoVuelo.classList.toggle('activo', modoNavActual === 'vuelo');
+    }
+
+    function establecerModoCaminarVuelo(modo) {
+        if (window.__esMovil && modo === 'vuelo') return;
+        if (modo === modoNavActual || (modoNavActual !== 'caminar' && modoNavActual !== 'vuelo')) return;
+        transicionVista = null;
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        modoNavActual = modo;
+        if (modo === 'caminar') {
+            if (camara) reiniciarEstadoCaminar(camara.getPosition());
+            panelAyudaNav.textContent = 'Drag to look · WASD to move · Space to jump · F for fly mode';
+        } else {
+            objetivoNav = null;
+            ocultarAnilloNav();
+            panelAyudaNav.textContent = 'Drag to look · WASD to move · Scroll to speed up · F for walk mode';
+        }
+        actualizarSelectorModoNav();
+    }
+
+    botonModoCaminar.addEventListener('click', () => establecerModoCaminarVuelo('caminar'));
+    botonModoVuelo.addEventListener('click', () => establecerModoCaminarVuelo('vuelo'));
+
+    const elementoSelectorVistas = document.getElementById('selectorVistas');
+    const botonVistaAnterior = document.getElementById('botonVistaAnterior');
+    const botonVistaSiguiente = document.getElementById('botonVistaSiguiente');
+    const elementoPuntosVista = document.getElementById('puntosVista');
+    let vistasActuales = [];
+    let indiceVistaActual = 0;
+
+    // On by default - the toggle still lets it be hidden if the bottom switcher feels like
+    // clutter, but it shows from the start rather than requiring a click.
+    let selectorVistasVisible = true;
+    const botonAlternarSelectorVistas = document.getElementById('botonAlternarSelectorVistas');
+
+    function actualizarPuntosVista() {
+        Array.from(elementoPuntosVista.children).forEach((el, i) => el.classList.toggle('activo', i === indiceVistaActual));
+    }
+
+    function actualizarSelectorVistas(piso) {
+        vistasActuales = piso.vistas || [];
+        indiceVistaActual = 0;
+        // Dropping the hidden attribute permanently (once visible, it's never re-applied) lets
+        // the opacity/transform transition on .selector-vistas-oculto actually play - [hidden]
+        // forces display:none, which can't be animated to/from.
+        elementoSelectorVistas.hidden = false;
+        elementoSelectorVistas.classList.toggle('selector-vistas-oculto', !selectorVistasVisible || vistasActuales.length < 2);
+        elementoPuntosVista.innerHTML = '';
+        vistasActuales.forEach(() => {
+            const punto = document.createElement('span');
+            punto.className = 'punto-vista';
+            elementoPuntosVista.appendChild(punto);
+        });
+        actualizarPuntosVista();
+    }
+
+    // Removed on mobile - one more corner-icon button competing for space than the screen can
+    // spare there. The switcher just stays on (selectorVistasVisible's default) with no way
+    // to turn it off, same as fly mode has no way to turn on.
+    function actualizarBotonAlternarSelectorVistas(piso) {
+        botonAlternarSelectorVistas.hidden = window.__esMovil || (piso.vistas || []).length < 2;
+        botonAlternarSelectorVistas.setAttribute('aria-pressed', String(selectorVistasVisible));
+    }
+
+    botonAlternarSelectorVistas.addEventListener('click', () => {
+        selectorVistasVisible = !selectorVistasVisible;
+        botonAlternarSelectorVistas.setAttribute('aria-pressed', String(selectorVistasVisible));
+        elementoSelectorVistas.classList.toggle('selector-vistas-oculto', !selectorVistasVisible || vistasActuales.length < 2);
+    });
+
+    function irVistaRelativa(delta) {
+        if (vistasActuales.length === 0) return;
+        indiceVistaActual = (indiceVistaActual + delta + vistasActuales.length) % vistasActuales.length;
+        actualizarPuntosVista();
+        saltarAVista(vistasActuales[indiceVistaActual]);
+    }
+
+    botonVistaAnterior.addEventListener('click', () => irVistaRelativa(-1));
+    botonVistaSiguiente.addEventListener('click', () => irVistaRelativa(1));
+
+    // Mirrors actualizarCamaraOrbita's spherical math, but using the VIEW's own stored
+    // guiñada/cabeceo/distancia rather than the live orbit state - gives each orbit view its own
+    // real vantage point instead of every one collapsing onto the shared pivot (which the orbit
+    // camera always looks straight at, so a marker placed there would sit dead-center on screen
+    // for every single view, regardless of that view's actual angle).
+    // Only a fraction of the view's real orbit distance - the closer a marker sits to the shared
+    // pivot, the more of the surrounding orbit range it stays visible/clickable from, since the
+    // orbit camera always looks straight at that pivot. Placed at the view's true distance, a
+    // marker is only in view once you've rotated nearly all the way to that view's own angle,
+    // which defeats the point of a marker you can click to get there in the first place.
+    const FRACCION_DISTANCIA_MARCADOR_ORBITA = 0.6;
+
+    // A fixed 35% fraction alone isn't enough - for some views that lands the point INSIDE the
+    // building's own solid mass rather than just near its surface, since it has no idea where the
+    // actual geometry is. A marker embedded in solid voxel space is occluded from every angle
+    // except ones close enough that the shortened occlusion ray doesn't yet reach the shell it'd
+    // have to cross - exactly the "only visible from one specific POV" symptom. Fixed the same way
+    // actualizarCamaraOrbita keeps the orbit camera itself out of the building: push outward along
+    // the same direction, in real distance steps, until genuinely clear.
+    function posicionVistaOrbita(piso, vista) {
+        const foco = piso.focoOrbita;
+        if (!foco || !vista.orbita) return null;
+        const radGuiñada = (vista.orbita.guiñada * Math.PI) / 180;
+        const radCabeceo = (vista.orbita.cabeceo * Math.PI) / 180;
+        const dirX = Math.cos(radCabeceo) * Math.sin(radGuiñada);
+        const dirY = Math.sin(radCabeceo);
+        const dirZ = Math.cos(radCabeceo) * Math.cos(radGuiñada);
+        const distanciaMax = vista.orbita.distancia;
+        const holgura = piso.holguraOrbita ?? 3;
+        const PASO = 0.5;
+        let distancia = Math.min(distanciaMax, distanciaMax * FRACCION_DISTANCIA_MARCADOR_ORBITA);
+        let x = foco[0] + dirX * distancia, y = foco[1] + dirY * distancia, z = foco[2] + dirZ * distancia;
+        while (distancia < distanciaMax && estaDemasiadoCerca(x, y, z, holgura)) {
+            distancia += PASO;
+            x = foco[0] + dirX * distancia;
+            y = foco[1] + dirY * distancia;
+            z = foco[2] + dirZ * distancia;
+        }
+        return [x, y, z];
+    }
+
+    // Views don't inherently have a "location" the way a portal does - a 'libre' (walk/fly-type)
+    // view has its own camera position, so the marker floats there; an 'orbita' view's equivalent
+    // "location" is the vantage point that view's own angles put the camera at.
+    function posicionMundoVista(piso, vista) {
+        return vista.posicion || posicionVistaOrbita(piso, vista) || null;
+    }
+
+
+    const DURACION_TRANSICION_VISTA = 700;
+    let transicionVista = null; // { tipo: 'orbita'|'libre', inicio, desde, hasta }
+
+    function facilitarTransicion(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    // Rewrites `hasta` to the equivalent angle closest to `desde` (e.g. 350° instead of -10°)
+    // so a lerp between them takes the short way around instead of spinning the long way.
+    function anguloDesenvuelto(desde, hasta) {
+        return desde + (((hasta - desde + 180) % 360 + 360) % 360 - 180);
+    }
+
+    function saltarAVista(vista) {
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        if (!camara) return;
+        autoRotandoExt = false;
+        const idx = vistasActuales.indexOf(vista);
+        if (idx !== -1) { indiceVistaActual = idx; actualizarPuntosVista(); }
+        if (vista.orbita) {
+            transicionVista = {
+                tipo: 'orbita',
+                inicio: performance.now(),
+                desde: { guiñada: guiñadaOrbita, cabeceo: cabeceoOrbita, distancia: distanciaOrbita },
+                hasta: {
+                    guiñada: anguloDesenvuelto(guiñadaOrbita, vista.orbita.guiñada),
+                    cabeceo: vista.orbita.cabeceo,
+                    distancia: vista.orbita.distancia
+                }
+            };
+        } else {
+            const pos = camara.getPosition();
+            transicionVista = {
+                tipo: 'libre',
+                inicio: performance.now(),
+                desde: { pos: [pos.x, pos.y, pos.z], cabeceo, guiñada },
+                hasta: { pos: vista.posicion, cabeceo: vista.rotacion[0], guiñada: anguloDesenvuelto(guiñada, vista.rotacion[1]) }
+            };
+        }
+    }
+
+    const MODO_EDICION = new URLSearchParams(location.search).get('edit') === '1';
+    const panelEditor = document.getElementById('panelEditor');
+    const lecturaEditor = document.getElementById('lecturaEditor');
+    const listaVistas = document.getElementById('listaVistas');
+    const listaPortales = document.getElementById('listaPortales');
+    const botonAccionPortal = document.getElementById('botonAccionPortal');
+    const botonCancelarPortal = document.getElementById('botonCancelarPortal');
+    const estadoPortal = document.getElementById('estadoPortal');
+    const botonSpawnAqui = document.getElementById('botonSpawnAqui');
+    const estadoSpawn = document.getElementById('estadoSpawn');
+
+    let portalPendiente = null;
+
+    function poseActual() {
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        if (!camara) return null;
+        const p = camara.getPosition();
+        return { posicion: [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)], rotacion: [+cabeceo.toFixed(1), +guiñada.toFixed(1), 0] };
+    }
+
+    function actualizarEstadoSpawn() {
+        const esOrbita = modoNavActual === 'orbita';
+        botonSpawnAqui.hidden = esOrbita;
+        estadoSpawn.hidden = esOrbita;
+        if (esOrbita) return;
+        const ic = PISOS[pisoActual].inicioCamara;
+        estadoSpawn.textContent = ic
+            ? `Inicio actual: [${ic.posicion.join(', ')}]`
+            : 'Sin definir - entra desde otro piso o define uno aquí.';
+    }
+
+    function actualizarUIPortal() {
+        if (!portalPendiente) {
+            botonAccionPortal.textContent = 'Iniciar portal aquí';
+            botonAccionPortal.disabled = modoNavActual === 'orbita';
+            botonCancelarPortal.hidden = true;
+            estadoPortal.textContent = '';
+        } else if (pisoActual === portalPendiente.pisoOrigen) {
+            botonAccionPortal.textContent = 'Terminar portal aquí';
+            botonAccionPortal.disabled = true;
+            botonCancelarPortal.hidden = false;
+            estadoPortal.textContent = `Portal iniciado aquí. Ve a otro piso (selector de pisos, arriba a la derecha) para terminarlo allí.`;
+        } else {
+            botonAccionPortal.textContent = 'Terminar portal aquí';
+            botonAccionPortal.disabled = false;
+            botonCancelarPortal.hidden = false;
+            estadoPortal.textContent = `Portal pendiente desde ${portalPendiente.pisoOrigen}. Camina hasta el punto de llegada y luego haz clic en "Terminar portal aquí".`;
+        }
+    }
+
+    function renderizarListaVistas() {
+        listaVistas.innerHTML = '';
+        Object.entries(PISOS).forEach(([idPiso, piso]) => {
+            (piso.vistas || []).forEach((vista, i) => {
+                const fila = document.createElement('div');
+                fila.className = 'item-editor';
+                fila.innerHTML = `<span>${idPiso} · Vista ${i + 1}</span>`;
+                const borrar = document.createElement('button');
+                borrar.textContent = '×';
+                borrar.addEventListener('click', () => {
+                    const arr = PISOS[idPiso].vistas;
+                    arr.splice(arr.indexOf(vista), 1);
+                    renderizarListaVistas();
+                    if (idPiso === pisoActual) { actualizarSelectorVistas(PISOS[idPiso]); actualizarBotonAlternarSelectorVistas(PISOS[idPiso]); }
+                });
+                fila.appendChild(borrar);
+                listaVistas.appendChild(fila);
+            });
+        });
+    }
+
+    function renderizarListaPortales() {
+        listaPortales.innerHTML = '';
+        Object.entries(PISOS).forEach(([idPiso, piso]) => {
+            (piso.portales || []).forEach((portal) => {
+                const fila = document.createElement('div');
+                fila.className = 'item-editor';
+                fila.innerHTML = `<span>${idPiso} → ${portal.destino}</span>`;
+                const borrar = document.createElement('button');
+                borrar.textContent = '×';
+                borrar.addEventListener('click', () => {
+                    const arr = PISOS[idPiso].portales;
+                    arr.splice(arr.indexOf(portal), 1);
+                    renderizarListaPortales();
+                    if (idPiso === pisoActual) { limpiarMarcadoresPortal(); crearMarcadoresPortal(PISOS[idPiso]); }
+                });
+                fila.appendChild(borrar);
+                listaPortales.appendChild(fila);
+            });
+        });
+    }
+
+    if (MODO_EDICION) {
+        panelEditor.hidden = false;
+        renderizarListaVistas();
+        renderizarListaPortales();
+
+        botonSpawnAqui.addEventListener('click', () => {
+            if (modoNavActual === 'orbita') return;
+            PISOS[pisoActual].inicioCamara = poseActual();
+            actualizarEstadoSpawn();
+        });
+
+        document.getElementById('botonAgregarVista').addEventListener('click', () => {
+            if (!PISOS[pisoActual].vistas) PISOS[pisoActual].vistas = [];
+            const etiqueta = `v${PISOS[pisoActual].vistas.length + 1}`;
+            const vista = modoNavActual === 'orbita'
+                ? { etiqueta, orbita: { guiñada: +guiñadaOrbita.toFixed(1), cabeceo: +cabeceoOrbita.toFixed(1), distancia: +distanciaOrbita.toFixed(2) } }
+                : { etiqueta, ...poseActual() };
+            PISOS[pisoActual].vistas.push(vista);
+            actualizarSelectorVistas(PISOS[pisoActual]);
+            actualizarBotonAlternarSelectorVistas(PISOS[pisoActual]);
+            renderizarListaVistas();
+        });
+
+        botonAccionPortal.addEventListener('click', () => {
+            if (!portalPendiente) {
+                if (modoNavActual === 'orbita') { alert('Los portales solo están disponibles en pisos caminables (no orbitales).'); return; }
+                portalPendiente = { pisoOrigen: pisoActual, posMundo: poseActual().posicion };
+            } else if (pisoActual !== portalPendiente.pisoOrigen) {
+                const pose = poseActual();
+                const portal = { destino: pisoActual, posMundo: portalPendiente.posMundo, llegada: { posicion: pose.posicion, rotacion: pose.rotacion } };
+                if (!PISOS[portalPendiente.pisoOrigen].portales) PISOS[portalPendiente.pisoOrigen].portales = [];
+                PISOS[portalPendiente.pisoOrigen].portales.push(portal);
+                portalPendiente = null;
+                renderizarListaPortales();
+            }
+            actualizarUIPortal();
+        });
+
+        botonCancelarPortal.addEventListener('click', () => {
+            portalPendiente = null;
+            actualizarUIPortal();
+        });
+
+        document.getElementById('botonExportar').addEventListener('click', () => {
+            const fmtPose = (p) => `{ posicion: [${p.posicion.join(', ')}], rotacion: [${p.rotacion.join(', ')}] }`;
+            const fmtVista = (v) => v.orbita
+                ? `    { etiqueta: '${v.etiqueta}', orbita: { guiñada: ${v.orbita.guiñada}, cabeceo: ${v.orbita.cabeceo}, distancia: ${v.orbita.distancia} } }`
+                : `    { etiqueta: '${v.etiqueta}', posicion: [${v.posicion.join(', ')}], rotacion: [${v.rotacion.join(', ')}] }`;
+            let texto = '';
+            Object.entries(PISOS).forEach(([id, piso]) => {
+                const vistas = piso.vistas || [];
+                const portales = piso.portales || [];
+                const inicioCamara = piso.inicioCamara;
+                if (!vistas.length && !portales.length && !inicioCamara) return;
+                texto += `// ${id}\n`;
+                if (inicioCamara) {
+                    texto += `inicioCamara: ${fmtPose(inicioCamara)},\n`;
+                }
+                if (vistas.length) {
+                    texto += `vistas: [\n${vistas.map(fmtVista).join(',\n')}\n],\n`;
+                }
+                if (portales.length) {
+                    texto += `portales: [\n${portales.map((p) => `    { destino: '${p.destino}', posMundo: [${p.posMundo.join(', ')}], llegada: ${fmtPose(p.llegada)} }`).join(',\n')}\n],\n`;
+                }
+                texto += '\n';
+            });
+            document.getElementById('textoExportar').value = texto || '(aún no hay vistas ni portales definidos)';
+            document.getElementById('modalExportar').hidden = false;
+        });
+
+        document.getElementById('botonCopiarExportar').addEventListener('click', () => {
+            navigator.clipboard.writeText(document.getElementById('textoExportar').value);
+        });
+        document.getElementById('botonCerrarExportar').addEventListener('click', () => {
+            document.getElementById('modalExportar').hidden = true;
+        });
+    }
+
+    let cabeceo = 0;
+    let guiñada = 0;
+    let velocidadMovimiento = 2;
+    const VELOCIDAD_MOVIMIENTO_MIN = 0.3;
+    const VELOCIDAD_MOVIMIENTO_MAX = 15;
+    const SENSIBILIDAD_VISTA = 0.15;
+    const teclasPresionadas = new Set();
+    let arrastrando = false;
+
+    let modoNavActual = 'vuelo';
+    let autoRotandoExt = false;
+    const VELOCIDAD_AUTOROTACION_EXT = 2.5;
+    let focoOrbita = { x: 0, y: 0, z: 0 };
+    let guiñadaOrbita = 0;
+    let cabeceoOrbita = 15;
+    let distanciaOrbita = 20;
+    let holguraOrbita = 3;
+    const SENSIBILIDAD_VISTA_ORBITA = 0.2;
+    const DISTANCIA_ORBITA_MIN = 2;
+    const DISTANCIA_ORBITA_MAX = 150;
+    const FACTOR_DISTANCIA_ORBITA_MAX = 2;
+    const DISTANCIA_ORBITA_MAX_RESPALDO = 60;
+
+    function obtenerDistanciaOrbitaMax() {
+        if (!limitesPisoActual) return DISTANCIA_ORBITA_MAX_RESPALDO;
+        const [minX, minY, minZ] = limitesPisoActual.minimo;
+        const [maxX, maxY, maxZ] = limitesPisoActual.maximo;
+        const mediaDiagonal = 0.5 * Math.hypot(maxX - minX, maxY - minY, maxZ - minZ);
+        return Math.min(DISTANCIA_ORBITA_MAX, mediaDiagonal * FACTOR_DISTANCIA_ORBITA_MAX);
+    }
+
+    const DIRECCIONES_HOLGURA = [
+        [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+        [1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1],
+        [-1, 1, 1], [-1, 1, -1], [-1, -1, 1], [-1, -1, -1]
+    ].map(([x, y, z]) => {
+        const len = Math.sqrt(x * x + y * y + z * z);
+        return [x / len, y / len, z / len];
+    });
+
+    function estaDemasiadoCerca(x, y, z, holgura) {
+        if (!grillaVoxelActual) return false;
+        if (grillaVoxelActual.esSolido(x, y, z, false)) return true;
+        for (const [dx, dy, dz] of DIRECCIONES_HOLGURA) {
+            if (grillaVoxelActual.esSolido(x + dx * holgura, y + dy * holgura, z + dz * holgura, false)) return true;
+        }
+        return false;
+    }
+
+    function actualizarCamaraOrbita(camara) {
+        const radGuiñada = (guiñadaOrbita * Math.PI) / 180;
+        const radCabeceo = (cabeceoOrbita * Math.PI) / 180;
+        const posicionEn = (distancia) => ({
+            x: focoOrbita.x + distancia * Math.cos(radCabeceo) * Math.sin(radGuiñada),
+            y: focoOrbita.y + distancia * Math.sin(radCabeceo),
+            z: focoOrbita.z + distancia * Math.cos(radCabeceo) * Math.cos(radGuiñada)
+        });
+
+        let p = posicionEn(distanciaOrbita);
+        if (estaDemasiadoCerca(p.x, p.y, p.z, holguraOrbita)) {
+            const PASO = 0.1;
+            let distancia = distanciaOrbita;
+            for (let i = 0; i < 400 && distancia < DISTANCIA_ORBITA_MAX; i++) {
+                distancia += PASO;
+                p = posicionEn(distancia);
+                if (!estaDemasiadoCerca(p.x, p.y, p.z, holguraOrbita)) break;
+            }
+            distanciaOrbita = distancia;
+        }
+        camara.setPosition(p.x, p.y, p.z);
+        camara.lookAt(focoOrbita.x, focoOrbita.y, focoOrbita.z);
+    }
+
+    const ALTURA_CAPSULA_CAMINAR = 0.5;
+    const RADIO_CAPSULA_CAMINAR = 0.1;
+    const ALTURA_OJOS_CAMINAR = 1.2;
+    const GRAVEDAD_CAMINAR = 9.8;
+    const VELOCIDAD_SALTO_CAMINAR = 4;
+    const VELOCIDAD_SUELO_CAMINAR = 3.5;
+    const VELOCIDAD_AIRE_CAMINAR = 1;
+    const AMORTIGUACION_SUELO_CAMINAR = 0.99;
+    const AMORTIGUACION_AIRE_CAMINAR = 0.998;
+    const ALTURA_FLOTACION_CAMINAR = 0.05;
+    const RIGIDEZ_RESORTE_CAMINAR = 800;
+    const AMORTIGUACION_RESORTE_CAMINAR = 57;
+    const ALCANCE_SONDEO_SUELO_CAMINAR = 1.0;
+    const DT_FIJO_CAMINAR = 1 / 60;
+    const SUBPASOS_MAX_CAMINAR = 10;
+    const MARGEN_LIMITES_CAMINAR = -0.75;
+    const MARGEN_RECUPERACION_CAIDA = 4;
+
+    const posicionCaminar = new pc.Vec3();
+    const posicionAnteriorCaminar = new pc.Vec3();
+    const velocidadCaminar = new pc.Vec3();
+    let caminarEnSuelo = false;
+    let caminarSaltando = false;
+    let caminarSaltoPresionado = false;
+    let acumuladorCaminar = 0;
+
+    const cuatGuiñadaCaminar = new pc.Quat();
+    const adelanteCaminar = new pc.Vec3();
+    const derechaCaminar = new pc.Vec3();
+    const deltaPasoCaminar = new pc.Vec3();
+    const empujeCaminar = { x: 0, y: 0, z: 0 };
+    const posRenderCaminar = new pc.Vec3();
+
+    function reiniciarEstadoCaminar(pos) {
+        posicionCaminar.copy(pos);
+        posicionAnteriorCaminar.copy(pos);
+        velocidadCaminar.set(0, 0, 0);
+        caminarEnSuelo = false;
+        caminarSaltando = false;
+        caminarSaltoPresionado = false;
+        acumuladorCaminar = 0;
+    }
+
+    function establecerBaseGuiñada(guiñadaGrados) {
+        cuatGuiñadaCaminar.setFromEulerAngles(0, guiñadaGrados, 0);
+        cuatGuiñadaCaminar.transformVector(pc.Vec3.FORWARD, adelanteCaminar);
+        cuatGuiñadaCaminar.transformVector(pc.Vec3.RIGHT, derechaCaminar);
+    }
+
+    function sondearSueloCaminar() {
+        if (!grillaVoxelActual) return null;
+        const oy = posicionCaminar.y - ALTURA_OJOS_CAMINAR;
+        const r = RADIO_CAPSULA_CAMINAR;
+        let totalY = 0, cuentaImpactos = 0;
+        for (let i = 0; i < 5; i++) {
+            let ox = posicionCaminar.x, oz = posicionCaminar.z;
+            if (i === 1) ox -= r;
+            else if (i === 2) ox += r;
+            else if (i === 3) oz += r;
+            else if (i === 4) oz -= r;
+            const impacto = grillaVoxelActual.consultarRayo(ox, oy, oz, 0, -1, 0, ALCANCE_SONDEO_SUELO_CAMINAR);
+            if (impacto) { totalY += impacto.y; cuentaImpactos++; }
+        }
+        return cuentaImpactos > 0 ? totalY / cuentaImpactos : null;
+    }
+
+    // Generous enough for a typical stair riser (or small curb/threshold) so walking into one
+    // just steps up onto it, the way a person would, instead of needing an actual jump to clear
+    // what the capsule otherwise treats as a wall for the frame or two before the ground-follow
+    // spring catches up on its own.
+    const ALTURA_ESCALON_AUTO_CAMINAR = 0.3;
+
+    function intentarAutoEscalonCaminar() {
+        if (!grillaVoxelActual || caminarSaltando) return;
+        const feetY = posicionCaminar.y - ALTURA_OJOS_CAMINAR;
+        const oy = feetY + ALTURA_ESCALON_AUTO_CAMINAR + 0.05;
+        const impacto = grillaVoxelActual.consultarRayo(posicionCaminar.x, oy, posicionCaminar.z, 0, -1, 0, ALTURA_ESCALON_AUTO_CAMINAR + 0.1);
+        if (!impacto) return;
+        const subida = impacto.y - feetY;
+        if (subida <= 0.02 || subida > ALTURA_ESCALON_AUTO_CAMINAR) return;
+        posicionCaminar.y = impacto.y + ALTURA_OJOS_CAMINAR;
+        if (velocidadCaminar.y < 0) velocidadCaminar.y = 0;
+        caminarEnSuelo = true;
+    }
+
+    // The scan's own front door is open with nothing real captured beyond it - this floor only
+    // has one entrance (inicioCamara, placed as if you'd just walked through it), so an invisible
+    // wall just behind that point keeps you from backing out through the open doorway into empty,
+    // uncollided space. Computed fresh from the floor's own data each time it loads, not from
+    // wherever you actually entered, since the real door is always there regardless.
+    const DISTANCIA_BLOQUEO_PUERTA_CAMINAR = 0.3;
+    let bloqueoPuertaCaminar = null;
+
+    function calcularBloqueoPuertaCaminar(piso) {
+        // bloqueoPuerta is an optional full-pose override for when the real door isn't where
+        // inicioCamara currently points (e.g. the spawn was later moved deeper into the room for
+        // a better starting view) - both its position AND facing direction need to come from the
+        // same reference, or the blocking plane ends up at the right spot but facing the wrong way.
+        const pose = piso.bloqueoPuerta || piso.inicioCamara;
+        // The placeholder every new floor starts with before a real spawn point is ever set
+        // (via 'Marcar inicio aquí') - building a blocker from it would wall off an arbitrary
+        // point that has nothing to do with the room's actual door, easily boxing the player in
+        // against real geometry on the other side.
+        const esMarcadorPorDefecto = pose && pose.posicion[0] === 0 && pose.posicion[1] === 1.6 && pose.posicion[2] === 0 &&
+            pose.rotacion[0] === 0 && pose.rotacion[1] === 0;
+        if (!pose || esMarcadorPorDefecto) { bloqueoPuertaCaminar = null; return; }
+        const [px, , pz] = pose.posicion;
+        const cuat = new pc.Quat();
+        const adelante = new pc.Vec3();
+        cuat.setFromEulerAngles(0, pose.rotacion[1], 0);
+        cuat.transformVector(pc.Vec3.FORWARD, adelante);
+        bloqueoPuertaCaminar = {
+            x: px - adelante.x * DISTANCIA_BLOQUEO_PUERTA_CAMINAR,
+            z: pz - adelante.z * DISTANCIA_BLOQUEO_PUERTA_CAMINAR,
+            nx: adelante.x,
+            nz: adelante.z,
+        };
+    }
+
+    function aplicarBloqueoPuertaCaminar() {
+        if (!bloqueoPuertaCaminar) return;
+        const dist = (posicionCaminar.x - bloqueoPuertaCaminar.x) * bloqueoPuertaCaminar.nx + (posicionCaminar.z - bloqueoPuertaCaminar.z) * bloqueoPuertaCaminar.nz;
+        if (dist < RADIO_CAPSULA_CAMINAR) {
+            const correccion = RADIO_CAPSULA_CAMINAR - dist;
+            posicionCaminar.x += bloqueoPuertaCaminar.nx * correccion;
+            posicionCaminar.z += bloqueoPuertaCaminar.nz * correccion;
+        }
+    }
+
+    function verificarColisionCaminar() {
+        if (!grillaVoxelActual) return;
+        const centro = posicionCaminar.y - ALTURA_OJOS_CAMINAR + ALTURA_CAPSULA_CAMINAR * 0.5;
+        const mitad = ALTURA_CAPSULA_CAMINAR * 0.5 - RADIO_CAPSULA_CAMINAR;
+        if (grillaVoxelActual.consultarCapsula(posicionCaminar.x, centro, posicionCaminar.z, mitad, RADIO_CAPSULA_CAMINAR, empujeCaminar)) {
+            posicionCaminar.x += empujeCaminar.x;
+            posicionCaminar.y += empujeCaminar.y;
+            posicionCaminar.z += empujeCaminar.z;
+
+            if (empujeCaminar.y < 0 && velocidadCaminar.y > 0) velocidadCaminar.y = 0;
+
+            if (!caminarEnSuelo && empujeCaminar.y > 0 && velocidadCaminar.y < 0) {
+                velocidadCaminar.y = 0;
+                caminarEnSuelo = true;
+            }
+        }
+    }
+
+    function aplicarLimitesCaminar() {
+        if (!limitesPisoActual) return;
+        const [minX, minY, minZ] = limitesPisoActual.minimo;
+        const [maxX, , maxZ] = limitesPisoActual.maximo;
+
+        const loX = minX - MARGEN_LIMITES_CAMINAR, hiX = maxX + MARGEN_LIMITES_CAMINAR;
+        const loZ = minZ - MARGEN_LIMITES_CAMINAR, hiZ = maxZ + MARGEN_LIMITES_CAMINAR;
+        if (loX < hiX) posicionCaminar.x = Math.max(loX, Math.min(hiX, posicionCaminar.x));
+        if (loZ < hiZ) posicionCaminar.z = Math.max(loZ, Math.min(hiZ, posicionCaminar.z));
+
+        if (posicionCaminar.y < minY - MARGEN_RECUPERACION_CAIDA) {
+            const inicio = PISOS[pisoActual]?.inicioCamara;
+            if (inicio) {
+                reiniciarEstadoCaminar(new pc.Vec3(...inicio.posicion));
+                cabeceo = inicio.rotacion[0];
+                guiñada = inicio.rotacion[1];
+                const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                if (camara) camara.setEulerAngles(cabeceo, guiñada, 0);
+            }
+        }
+    }
+
+    function pasoCaminar(dt, moveX, moveZ, saltoPresionado, direccionMundo) {
+        const sueloY = sondearSueloCaminar();
+        const haySuelo = sueloY !== null;
+
+        if (velocidadCaminar.y < 0) caminarSaltando = false;
+        if (saltoPresionado && !caminarSaltando && caminarEnSuelo && !caminarSaltoPresionado) {
+            caminarSaltando = true;
+            velocidadCaminar.y = VELOCIDAD_SALTO_CAMINAR;
+            caminarEnSuelo = false;
+        }
+        caminarSaltoPresionado = saltoPresionado;
+
+        if (haySuelo && !caminarSaltando) {
+            const yObjetivo = sueloY + ALTURA_FLOTACION_CAMINAR + ALTURA_OJOS_CAMINAR;
+            const desplazamiento = posicionCaminar.y - yObjetivo;
+            if (desplazamiento > 0.1) {
+                velocidadCaminar.y -= GRAVEDAD_CAMINAR * dt;
+                const siguienteY = posicionCaminar.y + velocidadCaminar.y * dt;
+                if (siguienteY <= yObjetivo) { posicionCaminar.y = yObjetivo; velocidadCaminar.y = 0; }
+                caminarEnSuelo = false;
+            } else {
+                const fuerzaResorte = -RIGIDEZ_RESORTE_CAMINAR * desplazamiento - AMORTIGUACION_RESORTE_CAMINAR * velocidadCaminar.y;
+                velocidadCaminar.y += fuerzaResorte * dt;
+                caminarEnSuelo = true;
+            }
+        } else {
+            velocidadCaminar.y -= GRAVEDAD_CAMINAR * dt;
+            caminarEnSuelo = false;
+        }
+
+        let dirX, dirZ;
+        if (direccionMundo) {
+            dirX = direccionMundo.x;
+            dirZ = direccionMundo.z;
+        } else {
+            establecerBaseGuiñada(guiñada);
+            const fz = -moveZ;
+            dirX = derechaCaminar.x * moveX + adelanteCaminar.x * fz;
+            dirZ = derechaCaminar.z * moveX + adelanteCaminar.z * fz;
+        }
+        const velocidadObjetivo = caminarEnSuelo ? VELOCIDAD_SUELO_CAMINAR : VELOCIDAD_AIRE_CAMINAR;
+
+        const factorAmortiguacion = caminarEnSuelo ? AMORTIGUACION_SUELO_CAMINAR : AMORTIGUACION_AIRE_CAMINAR;
+        const alfaAmortiguacion = 1 - Math.pow(factorAmortiguacion, dt * 1000);
+        velocidadCaminar.x = pc.math.lerp(velocidadCaminar.x, dirX * velocidadObjetivo, alfaAmortiguacion);
+        velocidadCaminar.z = pc.math.lerp(velocidadCaminar.z, dirZ * velocidadObjetivo, alfaAmortiguacion);
+
+        deltaPasoCaminar.copy(velocidadCaminar).mulScalar(dt);
+        posicionCaminar.add(deltaPasoCaminar);
+
+        intentarAutoEscalonCaminar();
+        verificarColisionCaminar();
+        aplicarBloqueoPuertaCaminar();
+        aplicarLimitesCaminar();
+    }
+
+    const RADIO_ANILLO_NAV = 0.18;
+    const SEGMENTOS_ANILLO_NAV = 20;
+    const DISTANCIA_LLEGADA_NAV = 0.5;
+    const EPSILON_PROGRESO_BLOQUEADO_NAV = 0.03;
+    const DURACION_BLOQUEO_NAV = 0.5;
+    const DISTANCIA_MIN_OBJETIVO_NAV = 1.0;
+
+    const svgCursorNav = document.getElementById('svgCursorNav');
+    const anilloCursorNav = document.getElementById('anilloCursorNav');
+    const direccionRayoNav = new pc.Vec3();
+    const puntoRayoNav = new pc.Vec3();
+    const puntoAnilloNav = new pc.Vec3();
+    const pantallaAnilloNav = new pc.Vec3();
+
+    let objetivoNav = null;
+    let distanciaAnteriorObjetivoNav = Infinity;
+    let tiempoAtascoObjetivoNav = 0;
+
+    function lanzarRayoCursor(offsetX, offsetY, camara) {
+        if (!grillaVoxelActual) return null;
+        const posCamara = camara.getPosition();
+        camara.camera.screenToWorld(offsetX, offsetY, 1.0, puntoRayoNav);
+        direccionRayoNav.set(puntoRayoNav.x - posCamara.x, puntoRayoNav.y - posCamara.y, puntoRayoNav.z - posCamara.z);
+        if (direccionRayoNav.lengthSq() < 1e-9) return null;
+        direccionRayoNav.normalize();
+        const impacto = grillaVoxelActual.consultarRayo(posCamara.x, posCamara.y, posCamara.z, direccionRayoNav.x, direccionRayoNav.y, direccionRayoNav.z, camara.camera.farClip);
+        if (!impacto) return null;
+        const dx = impacto.x - posCamara.x, dy = impacto.y - posCamara.y, dz = impacto.z - posCamara.z;
+        if (dx * dx + dy * dy + dz * dz < DISTANCIA_MIN_OBJETIVO_NAV * DISTANCIA_MIN_OBJETIVO_NAV) return null;
+        return impacto;
+    }
+
+    function renderizarAnilloNav(impacto, camara) {
+        const puntos = [];
+        for (let i = 0; i < SEGMENTOS_ANILLO_NAV; i++) {
+            const theta = (i / SEGMENTOS_ANILLO_NAV) * Math.PI * 2;
+            puntoAnilloNav.set(impacto.x + Math.cos(theta) * RADIO_ANILLO_NAV, impacto.y + 0.02, impacto.z + Math.sin(theta) * RADIO_ANILLO_NAV);
+            camara.camera.worldToScreen(puntoAnilloNav, pantallaAnilloNav);
+            puntos.push(`${pantallaAnilloNav.x.toFixed(1)},${(pantallaAnilloNav.y + desplazamientoCanvasSuperior).toFixed(1)}`);
+        }
+        anilloCursorNav.setAttribute('points', puntos.join(' '));
+        svgCursorNav.style.display = '';
+    }
+
+    function ocultarAnilloNav() {
+        svgCursorNav.style.display = 'none';
+    }
+
+    const resultadoDireccionNav = { x: 0, z: 0 };
+
+    function conducirObjetivoNav(dt) {
+        const dx = objetivoNav.x - posicionCaminar.x;
+        const dz = objetivoNav.z - posicionCaminar.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+
+        if (dist < DISTANCIA_LLEGADA_NAV) { objetivoNav = null; return null; }
+
+        if (dist > distanciaAnteriorObjetivoNav - EPSILON_PROGRESO_BLOQUEADO_NAV) {
+            tiempoAtascoObjetivoNav += dt;
+            if (tiempoAtascoObjetivoNav > DURACION_BLOQUEO_NAV) { objetivoNav = null; return null; }
+        } else {
+            tiempoAtascoObjetivoNav = 0;
+        }
+        distanciaAnteriorObjetivoNav = dist;
+
+        const invDist = 1 / dist;
+        resultadoDireccionNav.x = dx * invDist;
+        resultadoDireccionNav.z = dz * invDist;
+        return resultadoDireccionNav;
+    }
+
+    const TECLA_A_EJE = {
+        KeyW: [0, 0, -1], KeyS: [0, 0, 1],
+        KeyA: [-1, 0, 0], KeyD: [1, 0, 0],
+        ArrowUp: [0, 0, -1], ArrowDown: [0, 0, 1],
+        ArrowLeft: [-1, 0, 0], ArrowRight: [1, 0, 0]
+    };
+    const TECLAS_VERTICALES = { KeyE: 1, KeyQ: -1 };
+
+    window.addEventListener('keydown', (e) => {
+        if (TECLA_A_EJE[e.code] || TECLAS_VERTICALES[e.code] || e.code === 'Space') {
+            teclasPresionadas.add(e.code);
+            if (e.code === 'Space') e.preventDefault();
+        }
+    });
+    window.addEventListener('keyup', (e) => teclasPresionadas.delete(e.code));
+
+    window.addEventListener('keydown', (e) => {
+        if (e.code !== 'KeyF' || (modoNavActual !== 'caminar' && modoNavActual !== 'vuelo')) return;
+        establecerModoCaminarVuelo(modoNavActual === 'vuelo' ? 'caminar' : 'vuelo');
+    });
+
+    window.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = Math.exp(-e.deltaY * 0.001);
+        if (modoNavActual === 'orbita') {
+            autoRotandoExt = false;
+            distanciaOrbita = Math.max(DISTANCIA_ORBITA_MIN, Math.min(obtenerDistanciaOrbitaMax(), distanciaOrbita / factor));
+            const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+            if (camara) actualizarCamaraOrbita(camara);
+            return;
+        }
+        velocidadMovimiento = Math.max(VELOCIDAD_MOVIMIENTO_MIN, Math.min(VELOCIDAD_MOVIMIENTO_MAX, velocidadMovimiento * factor));
+    }, { passive: false });
+
+    // Adaptive splat budget - the mobile/desktop split is only a starting guess (device classes
+    // vary a lot internally: a high-end phone isn't a low-end one), so this measures real frame
+    // time afterwards and nudges the budget up or down from there instead of trusting the guess.
+    const FPS_OBJETIVO_BAJO = window.__esMovil ? 24 : 30;
+    const FPS_OBJETIVO_ALTO = window.__esMovil ? 40 : 50;
+    const SPLAT_BUDGET_MIN = window.__esMovil ? 250000 : 1500000;
+    const SPLAT_BUDGET_MAX = window.__esMovil ? 1800000 : 9000000;
+    // Short - starting from the crappy-quality floor below, this is how often it gets a chance to
+    // climb back up, so a short loop means it reaches a device's real ceiling in a few seconds
+    // instead of slowly creeping up over the first half-minute.
+    const INTERVALO_EVALUACION_BUDGET = 600;
+    // Streaming a newly loaded floor's splats in causes a real but temporary frame-time spike -
+    // without this, that spike alone would read as "this device is struggling" and ratchet the
+    // budget down right after every floor switch, for reasons unrelated to steady-state performance.
+    const GRACIA_TRAS_CARGA_PISO = 2500;
+    // Starts at the floor, not the old device-class guess - every device ramps up from
+    // deliberately bad quality and climbs only as far as it can actually sustain, rather than
+    // starting high and hoping it doesn't need to step down.
+    let splatBudgetActual = SPLAT_BUDGET_MIN;
+    let tiempoUltimaEvaluacionBudget = 0;
+    let tiempoDesbloqueoEvaluacionBudget = 0;
+    let acumuladorDtBudget = 0;
+    let acumuladorFramesBudget = 0;
+
+    function ajustarSplatBudget(dt) {
+        const ahora = performance.now();
+        if (ahora < tiempoDesbloqueoEvaluacionBudget) return;
+        acumuladorDtBudget += dt;
+        acumuladorFramesBudget += 1;
+        if (ahora - tiempoUltimaEvaluacionBudget < INTERVALO_EVALUACION_BUDGET) return;
+        tiempoUltimaEvaluacionBudget = ahora;
+        const frames = acumuladorFramesBudget;
+        const dtTotal = acumuladorDtBudget;
+        acumuladorDtBudget = 0;
+        acumuladorFramesBudget = 0;
+        if (frames < 5 || dtTotal <= 0) return;
+
+        const fpsPromedio = frames / dtTotal;
+        let nuevoBudget = splatBudgetActual;
+        if (fpsPromedio < FPS_OBJETIVO_BAJO) {
+            nuevoBudget = Math.max(SPLAT_BUDGET_MIN, Math.round(splatBudgetActual * 0.8));
+        } else if (fpsPromedio > FPS_OBJETIVO_ALTO) {
+            nuevoBudget = Math.min(SPLAT_BUDGET_MAX, Math.round(splatBudgetActual * 1.15));
+        }
+        if (nuevoBudget !== splatBudgetActual) {
+            splatBudgetActual = nuevoBudget;
+            elementoApp.app.scene.gsplat.splatBudget = splatBudgetActual;
+        }
+    }
+
+    elementoApp.ready().then(async () => {
+        try {
+            const canvas = elementoApp.querySelector('canvas');
+            if (!canvas) throw new Error('elementoApp.querySelector("canvas") devolvió null después de que la app estuviera lista');
+
+            // Off (0 = unlimited) by default in the engine, on every device, with no built-in
+            // device-aware tuning at all - this is the actual lever for splat-count control per the
+            // LOD/streaming research. Starts at SPLAT_BUDGET_MIN deliberately low; ajustarSplatBudget()
+            // (in the update loop) measures real frame time afterwards and climbs it back up only as
+            // far as the device can actually sustain. Either way, the engine's own distance-priority
+            // balancer redistributes against whatever the budget currently is (farthest nodes
+            // degraded first, closest nodes get any spare detail).
+            elementoApp.app.scene.gsplat.splatBudget = splatBudgetActual;
+
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            let modoArrastre = null;
+            const SENSIBILIDAD_PANEO = 0.01;
+
+            const UMBRAL_ARRASTRE_CLIC = 6;
+            let distanciaArrastre = 0;
+
+            canvas.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0 && e.button !== 2) return;
+                autoRotandoExt = false;
+                modoArrastre = e.button === 0 ? 'mirar' : 'panear';
+                arrastrando = true;
+                distanciaArrastre = 0;
+                canvas.setPointerCapture(e.pointerId);
+            });
+            canvas.addEventListener('pointerup', (e) => {
+                const fueClicMirar = modoArrastre === 'mirar' && distanciaArrastre < UMBRAL_ARRASTRE_CLIC;
+                arrastrando = false;
+                modoArrastre = null;
+                canvas.releasePointerCapture(e.pointerId);
+
+                if (fueClicMirar && modoNavActual === 'caminar') {
+                    const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                    const impacto = camara && lanzarRayoCursor(e.offsetX, e.offsetY, camara);
+                    if (impacto) {
+                        objetivoNav = { x: impacto.x, z: impacto.z };
+                        distanciaAnteriorObjetivoNav = Infinity;
+                        tiempoAtascoObjetivoNav = 0;
+                        ocultarAnilloNav();
+                    }
+                }
+            });
+            canvas.addEventListener('pointercancel', () => { arrastrando = false; modoArrastre = null; });
+            canvas.addEventListener('pointerleave', () => ocultarAnilloNav());
+            canvas.addEventListener('pointermove', (e) => {
+                if (!arrastrando) {
+                    if (modoNavActual !== 'caminar') { ocultarAnilloNav(); return; }
+                    const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                    const impacto = camara && lanzarRayoCursor(e.offsetX, e.offsetY, camara);
+                    if (impacto && camara) renderizarAnilloNav(impacto, camara);
+                    else ocultarAnilloNav();
+                    return;
+                }
+                distanciaArrastre += Math.abs(e.movementX) + Math.abs(e.movementY);
+                ocultarAnilloNav();
+                const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                if (!camara) return;
+
+                if (modoNavActual === 'orbita') {
+                    if (modoArrastre !== 'mirar') return;
+                    guiñadaOrbita -= e.movementX * SENSIBILIDAD_VISTA_ORBITA;
+                    cabeceoOrbita = Math.max(-85, Math.min(85, cabeceoOrbita + e.movementY * SENSIBILIDAD_VISTA_ORBITA));
+                    actualizarCamaraOrbita(camara);
+                    return;
+                }
+
+                if (modoArrastre === 'mirar') {
+                    guiñada -= e.movementX * SENSIBILIDAD_VISTA;
+                    cabeceo = Math.max(-89, Math.min(89, cabeceo - e.movementY * SENSIBILIDAD_VISTA));
+                    camara.setEulerAngles(cabeceo, guiñada, 0);
+                } else if (modoArrastre === 'panear' && modoNavActual !== 'caminar') {
+                    const derecha = new pc.Vec3(camara.right.x, camara.right.y, camara.right.z);
+                    const arriba = new pc.Vec3(camara.up.x, camara.up.y, camara.up.z);
+                    const delta = derecha.mulScalar(-e.movementX * SENSIBILIDAD_PANEO)
+                        .add(arriba.mulScalar(e.movementY * SENSIBILIDAD_PANEO));
+                    intentarMover(camara, delta.x, delta.y, delta.z);
+                }
+            });
+
+            elementoApp.app.on('update', (dt) => {
+                desplazamientoCanvasSuperior = canvas.getBoundingClientRect().top;
+                ajustarSplatBudget(dt);
+
+                const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                if (!camara) return;
+
+                if (transicionVista) {
+                    if (arrastrando) {
+                        transicionVista = null;
+                    } else {
+                        const t = Math.min(1, (performance.now() - transicionVista.inicio) / DURACION_TRANSICION_VISTA);
+                        const e = facilitarTransicion(t);
+                        const { desde, hasta } = transicionVista;
+                        if (transicionVista.tipo === 'orbita') {
+                            guiñadaOrbita = pc.math.lerp(desde.guiñada, hasta.guiñada, e);
+                            cabeceoOrbita = pc.math.lerp(desde.cabeceo, hasta.cabeceo, e);
+                            distanciaOrbita = pc.math.lerp(desde.distancia, hasta.distancia, e);
+                            actualizarCamaraOrbita(camara);
+                        } else {
+                            camara.setPosition(
+                                pc.math.lerp(desde.pos[0], hasta.pos[0], e),
+                                pc.math.lerp(desde.pos[1], hasta.pos[1], e),
+                                pc.math.lerp(desde.pos[2], hasta.pos[2], e)
+                            );
+                            cabeceo = pc.math.lerp(desde.cabeceo, hasta.cabeceo, e);
+                            guiñada = pc.math.lerp(desde.guiñada, hasta.guiñada, e);
+                            camara.setEulerAngles(cabeceo, guiñada, 0);
+                        }
+                        if (t >= 1) {
+                            if (transicionVista.tipo === 'libre') reiniciarEstadoCaminar(camara.getPosition());
+                            transicionVista = null;
+                        }
+                        return;
+                    }
+                }
+
+                if (MODO_EDICION) {
+                    const p = camara.getPosition();
+                    lecturaEditor.textContent = modoNavActual === 'orbita'
+                        ? `pos: [${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}]  orbita: guiñada ${guiñadaOrbita.toFixed(1)} cabeceo ${cabeceoOrbita.toFixed(1)} dist ${distanciaOrbita.toFixed(2)}`
+                        : `pos: [${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}]  rot: [${cabeceo.toFixed(1)}, ${guiñada.toFixed(1)}, 0]`;
+                }
+
+                actualizarPosicionesMarcadoresPortal(camara);
+                actualizarJugadorMinimapa(camara);
+
+                if (modoNavActual === 'orbita') {
+                    if (autoRotandoExt) {
+                        guiñadaOrbita += VELOCIDAD_AUTOROTACION_EXT * dt;
+                        actualizarCamaraOrbita(camara);
+                    }
+                    return;
+                }
+
+                if (modoNavActual === 'caminar') {
+                    const mover = new pc.Vec3();
+                    teclasPresionadas.forEach((codigo) => {
+                        if (TECLA_A_EJE[codigo]) {
+                            const [x, , z] = TECLA_A_EJE[codigo];
+                            mover.add(new pc.Vec3(x, 0, z));
+                        }
+                    });
+                    const saltoPresionado = teclasPresionadas.has('Space');
+
+                    if (objetivoNav && mover.lengthSq() > 0) { objetivoNav = null; }
+
+                    let direccionMundo = null;
+                    if (objetivoNav) {
+                        direccionMundo = conducirObjetivoNav(dt);
+                    }
+
+                    acumuladorCaminar = Math.min(acumuladorCaminar + dt, SUBPASOS_MAX_CAMINAR * DT_FIJO_CAMINAR);
+                    const numPasos = Math.floor(acumuladorCaminar / DT_FIJO_CAMINAR);
+                    for (let i = 0; i < numPasos; i++) {
+                        posicionAnteriorCaminar.copy(posicionCaminar);
+                        pasoCaminar(DT_FIJO_CAMINAR, mover.x, mover.z, saltoPresionado, direccionMundo);
+                        acumuladorCaminar -= DT_FIJO_CAMINAR;
+                    }
+
+                    const alfa = acumuladorCaminar / DT_FIJO_CAMINAR;
+                    posRenderCaminar.lerp(posicionAnteriorCaminar, posicionCaminar, alfa);
+                    camara.setPosition(posRenderCaminar.x, posRenderCaminar.y, posRenderCaminar.z);
+                    camara.setEulerAngles(cabeceo, guiñada, 0);
+                    return;
+                }
+
+                if (teclasPresionadas.size === 0) return;
+
+                const mover = new pc.Vec3();
+                let vertical = 0;
+                teclasPresionadas.forEach((codigo) => {
+                    if (TECLA_A_EJE[codigo]) {
+                        const [x, , z] = TECLA_A_EJE[codigo];
+                        mover.add(new pc.Vec3(x, 0, z));
+                    }
+                    if (TECLAS_VERTICALES[codigo]) vertical += TECLAS_VERTICALES[codigo];
+                });
+
+                const delta = new pc.Vec3();
+                if (mover.lengthSq() > 0) {
+                    const adelante = new pc.Vec3(camara.forward.x, camara.forward.y, camara.forward.z);
+                    const derecha = new pc.Vec3(camara.right.x, camara.right.y, camara.right.z);
+                    delta.add(adelante.mulScalar(-mover.z)).add(derecha.mulScalar(mover.x)).normalize();
+                }
+                delta.mulScalar(velocidadMovimiento * dt);
+                if (vertical !== 0) delta.y += vertical * velocidadMovimiento * dt;
+                if (delta.lengthSq() > 0) {
+                    intentarMover(camara, delta.x, delta.y, delta.z);
+                }
+            });
+
+            cargarPiso('DEPARTAMENTO').then(() => {
+                // Deliberately deferred until the first floor's gsplat has actually loaded (not
+                // fetched in parallel with it) - starting the sky's own load only once the model
+                // is already visible avoids the sky popping in at some arbitrary, mismatched point
+                // relative to the model's own reveal.
+                try {
+                    configurarCielo(elementoApp.app);
+                } catch (err) {
+                    console.error('configurarCielo falló (sin cielo, sigue el resto):', err);
+                }
+            }).catch((err) => {
+                console.error('cargarPiso falló:', err);
+            });
+        } catch (err) {
+            console.error('La configuración falló:', err);
+        }
+    }).catch((err) => {
+        console.error('elementoApp.ready() falló:', err);
+    });
+</script>
+
+</body>
+</html>
