@@ -1,0 +1,3108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Casa Kali</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<script type="importmap">
+{
+    "imports": {
+        "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.21.4/build/playcanvas.mjs",
+        "@playcanvas/web-components": "https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.18.0/dist/pwc.min.mjs"
+    }
+}
+</script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.18.0/dist/pwc.min.mjs"></script>
+
+<style>
+    :root {
+        color-scheme: dark;
+        --vidrio: rgba(16,16,16,0.55);
+        --vidrio-hover: rgba(40,40,40,0.7);
+        --borde: rgba(255,255,255,0.12);
+        --texto: #F4F4F2;
+        --texto-suave: rgba(255,255,255,0.72);
+        --acento: #e8622c;
+        --desenfoque: blur(10px);
+        --margen: 20px;
+        --fondo: #060607;
+        --cuerpo: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        --display: 'Inter Tight', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+    }
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--fondo);
+        font-family: var(--cuerpo);
+        overflow: hidden;
+    }
+    pc-app {
+        width: 100%;
+        height: 100dvh;
+        display: block;
+    }
+
+    #interfaz {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+    }
+    #capaPov {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+    }
+    #marca {
+        position: absolute;
+        top: var(--margen);
+        left: var(--margen);
+        height: 40px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--texto);
+        background: var(--vidrio);
+        border: 1px solid var(--borde);
+        padding: 0 14px 0 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        backdrop-filter: var(--desenfoque);
+        z-index: 3;
+    }
+    #marca strong { font-family: var(--display); font-weight: 600; }
+    #marca svg { height: 24px; width: auto; flex-shrink: 0; }
+
+    #selectorPisos {
+        position: absolute;
+        top: var(--margen);
+        right: var(--margen);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        pointer-events: auto;
+        z-index: 3;
+    }
+    #botonMenuPisos, #botonExterior, #chipPuerta {
+        height: 40px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 16px 0 13px;
+        background: var(--vidrio);
+        color: var(--texto);
+        border: 1px solid var(--borde);
+        border-radius: 20px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+        cursor: pointer;
+        backdrop-filter: var(--desenfoque);
+        transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+    #botonMenuPisos:hover, #botonExterior:hover, #chipPuerta:hover { background: var(--vidrio-hover); }
+    #botonMenuPisos:active, #botonExterior:active { transform: scale(0.97); }
+    #botonMenuPisos svg, #botonExterior svg, #chipPuerta svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--acento); }
+    #botonMenuPisos[aria-expanded="true"] { background: var(--vidrio-hover); }
+    #etiquetaMenuPisos { font-weight: 500; }
+
+    #menuPisos {
+        position: absolute;
+        top: 48px;
+        right: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        background: var(--vidrio);
+        border: 1px solid var(--borde);
+        border-radius: 12px;
+        padding: 6px;
+        min-width: 68px;
+        backdrop-filter: var(--desenfoque);
+    }
+    #menuPisos[hidden] { display: none; }
+    #menuPisos { z-index: 2; }
+
+    #panelMinimapa {
+        position: absolute;
+        top: 72px;
+        right: var(--margen);
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        pointer-events: auto;
+    }
+    #panelMinimapa[hidden] { display: none; }
+    #minimapaLienzo {
+        position: relative;
+        width: 190px;
+        background: var(--vidrio);
+        border: 1px solid var(--borde);
+        border-radius: 12px;
+        overflow: hidden;
+        backdrop-filter: var(--desenfoque);
+        cursor: pointer;
+    }
+    #minimapaLienzo[hidden] { display: none; }
+    #minimapaImagen {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    #minimapaMarcadores {
+        position: absolute;
+        inset: 0;
+    }
+    .marcador-mini {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        width: 16px;
+        height: 16px;
+        padding: 0;
+        border-radius: 50%;
+        background: rgba(20,20,20,0.85);
+        border: 1px solid rgba(255,255,255,0.4);
+        color: #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        pointer-events: auto;
+        transition: background 0.15s, color 0.15s, transform 0.1s;
+    }
+    .marcador-mini:hover { border-color: var(--acento); color: #fff; transform: translate(-50%, -50%) scale(1.2); }
+    .marcador-mini svg { width: 10px; height: 10px; flex-shrink: 0; }
+    .marcador-mini-vista { background: rgba(79,168,232,0.85); border-color: rgba(255,255,255,0.6); color: #fff; }
+    .marcador-mini-vista:hover { background: #6bb8f0; }
+    #minimapaJugador {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        color: #4fc3ff;
+        filter: drop-shadow(0 0 2px rgba(0,0,0,0.9));
+        pointer-events: none;
+    }
+    #minimapaJugador svg { width: 100%; height: 100%; display: block; }
+    #minimapaVertical {
+        display: flex;
+        gap: 4px;
+        pointer-events: auto;
+    }
+    #minimapaVertical[hidden] { display: none; }
+
+    body.modo-dividido pc-app {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 66.667dvh;
+    }
+    body.modo-dividido #capaPov {
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 66.667dvh;
+        bottom: auto;
+    }
+    body.modo-dividido #panelMinimapa {
+        position: fixed;
+        top: 66.667dvh;
+        left: 0;
+        right: auto;
+        width: 100%;
+        height: 33.333dvh;
+        z-index: 1;
+        justify-content: center;
+        background: #0d0d0d;
+        border-radius: 0;
+        padding: 4px 8px 8px;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+    body.modo-dividido #minimapaLienzo {
+        width: 100%;
+        max-height: 100%;
+        flex: 0 1 auto;
+    }
+    #botonPisoArriba, #botonPisoAbajo, #botonAyudaNav, #botonAlternarDivision {
+        width: 40px;
+        height: 40px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--vidrio);
+        color: var(--texto-suave);
+        border: 1px solid var(--borde);
+        border-radius: 50%;
+        cursor: pointer;
+        backdrop-filter: var(--desenfoque);
+        transition: background 0.15s, color 0.15s;
+    }
+    #botonPisoArriba:hover, #botonPisoAbajo:hover, #botonAyudaNav:hover, #botonAyudaNav[aria-expanded="true"],
+    #botonAlternarDivision:hover { background: var(--vidrio-hover); color: #fff; }
+    #botonPisoArriba svg, #botonPisoAbajo svg, #botonAyudaNav svg, #botonAlternarDivision svg { width: 18px; height: 18px; flex-shrink: 0; }
+    #botonPisoArriba[hidden], #botonPisoAbajo[hidden] { display: none; }
+
+    #selectorVistas {
+        position: absolute;
+        bottom: var(--margen);
+        left: 50%;
+        transform: translateX(-50%);
+        height: 40px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 3px;
+        border-radius: 20px;
+        background: var(--vidrio);
+        border: 1px solid var(--borde);
+        backdrop-filter: var(--desenfoque);
+        pointer-events: auto;
+        opacity: 1;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    #selectorVistas[hidden] { display: none; }
+    #selectorVistas.selector-vistas-oculto {
+        opacity: 0;
+        transform: translateX(-50%) translateY(12px);
+        pointer-events: none;
+    }
+    .boton-selector-vista {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        color: var(--texto-suave);
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .boton-selector-vista:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .boton-selector-vista svg { width: 18px; height: 18px; }
+    #puntosVista {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 2px;
+    }
+    .punto-vista {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.35);
+        transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .punto-vista.activo {
+        background: var(--acento);
+        transform: scale(1.3);
+    }
+
+    #selectorModoNav {
+        position: absolute;
+        bottom: var(--margen);
+        right: var(--margen);
+        height: 40px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 3px;
+        background: var(--vidrio);
+        border: 1px solid var(--borde);
+        border-radius: 20px;
+        backdrop-filter: var(--desenfoque);
+        pointer-events: auto;
+    }
+    #selectorModoNav[hidden] { display: none; }
+    .boton-modo-nav {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        color: var(--texto-suave);
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .boton-modo-nav:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .boton-modo-nav.activo { background: rgba(255,255,255,0.12); color: var(--acento); }
+    .boton-modo-nav svg { width: 18px; height: 18px; }
+    /* Needed: the display:flex above would otherwise override the [hidden] attribute. */
+    .boton-modo-nav[hidden] { display: none; }
+
+    .boton-piso {
+        background: transparent;
+        color: #ddd;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 13px;
+        text-align: center;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+    }
+    .boton-piso:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .boton-piso.activo { background: rgba(255,255,255,0.1); color: var(--acento); }
+
+    #panelEditor {
+        position: absolute;
+        bottom: 16px;
+        right: 16px;
+        width: 240px;
+        background: rgba(40,20,0,0.85);
+        border: 1px solid rgba(255,180,80,0.4);
+        border-radius: 10px;
+        padding: 12px;
+        pointer-events: auto;
+        font-size: 12px;
+        color: #ddd;
+        backdrop-filter: blur(4px);
+    }
+    #panelEditor[hidden] { display: none; }
+    .encabezado-editor {
+        color: #ffb050;
+        font-weight: 700;
+        font-size: 13px;
+        margin-bottom: 8px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+    #lecturaEditor {
+        font-family: Consolas, monospace;
+        font-size: 11px;
+        color: #9c9;
+        margin-bottom: 8px;
+        white-space: pre;
+    }
+    #panelEditor button, #panelEditor select {
+        width: 100%;
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-size: 12px;
+        cursor: pointer;
+        margin-bottom: 6px;
+    }
+    #panelEditor button:hover { background: rgba(255,255,255,0.2); }
+    .fila-editor { display: flex; gap: 6px; }
+    .fila-editor select, .fila-editor button { margin-bottom: 6px; }
+    #estadoPortal { color: #ffb050; margin-bottom: 6px; min-height: 1em; }
+    .etiqueta-seccion-editor {
+        color: #ffb050;
+        opacity: 0.75;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 10px 0 4px;
+    }
+    #botonCancelarPortal { background: rgba(255,80,80,0.25); }
+    #listaVistas, #listaPortales { max-height: 140px; overflow-y: auto; margin-bottom: 6px; }
+    .item-editor {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 4px;
+        padding: 4px 6px;
+        margin-bottom: 4px;
+    }
+    .item-editor span {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .item-editor button {
+        width: auto;
+        margin: 0;
+        padding: 2px 7px;
+        background: rgba(255,80,80,0.25);
+    }
+
+    #modalExportar {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 30;
+        pointer-events: auto;
+    }
+    #modalExportar[hidden] { display: none; }
+    #cajaModalExportar {
+        background: #1a1a1a;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 10px;
+        padding: 16px;
+        width: min(600px, 90vw);
+        color: #ddd;
+        font-size: 13px;
+    }
+    #textoExportar {
+        width: 100%;
+        height: 300px;
+        background: #0d0d0d;
+        color: #9c9;
+        font-family: Consolas, monospace;
+        font-size: 12px;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 6px;
+        padding: 8px;
+        box-sizing: border-box;
+        margin: 10px 0;
+    }
+    #cajaModalExportar button {
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 6px;
+        padding: 8px 14px;
+        cursor: pointer;
+    }
+    #cajaModalExportar button:hover { background: rgba(255,255,255,0.2); }
+
+    #ayudaNav {
+        position: absolute;
+        bottom: var(--margen);
+        left: var(--margen);
+        pointer-events: auto;
+    }
+    #botonAlternarDivision {
+        position: absolute;
+        bottom: var(--margen);
+        left: calc(var(--margen) + 48px);
+        pointer-events: auto;
+    }
+    #botonAlternarDivision[aria-pressed="true"] { color: var(--acento); }
+    #botonAlternarDivision[hidden] { display: none; }
+
+    body:not(.modo-edicion) #botonMenuPisos,
+    body:not(.modo-edicion) #menuPisos,
+    body:not(.modo-edicion) #minimapaVertical { display: none !important; }
+
+    #botonExterior[hidden] { display: none; }
+
+    #chipPuerta {
+        position: absolute;
+        bottom: calc(var(--margen) + 52px);
+        left: 50%;
+        transform: translate(-50%, 0);
+        border-color: rgba(232,98,44,0.55);
+        pointer-events: auto;
+        opacity: 1;
+        transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s;
+        z-index: 2;
+    }
+    #notaVista {
+        position: absolute;
+        left: var(--margen);
+        bottom: calc(var(--margen) + 52px);
+        width: 300px;
+        max-width: calc(100% - 2 * var(--margen));
+        box-sizing: border-box;
+        padding: 12px 14px 14px;
+        background: var(--vidrio);
+        border: 1px solid var(--borde);
+        border-radius: 14px;
+        backdrop-filter: var(--desenfoque);
+        color: var(--texto);
+        pointer-events: auto;
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    #notaVista.nota-oculta { opacity: 0; transform: translateY(10px); pointer-events: none; }
+    .encabezado-nota {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+    #indiceNotaVista {
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--acento);
+    }
+    #cerrarNotaVista {
+        width: 24px;
+        height: 24px;
+        margin: -4px -6px -4px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        color: var(--texto-suave);
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+    #cerrarNotaVista:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    #cerrarNotaVista svg { width: 14px; height: 14px; }
+    #tituloNotaVista { margin: 0 0 4px; font-family: var(--display); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    #textoNotaVista { margin: 0; font-size: 13px; line-height: 1.45; color: var(--texto-suave); }
+    @media (max-width: 600px) {
+        :root { --margen: 12px; }
+        #marca { height: 36px; padding: 0 12px 0 9px; font-size: 11px; }
+        #marca svg { height: 20px; }
+        #botonExterior { width: 36px; height: 36px; padding: 0; }
+        #etiquetaBotonExterior { display: none; }
+        #selectorVistas, #selectorModoNav { height: 36px; }
+        .boton-selector-vista, .boton-modo-nav { width: 30px; height: 30px; }
+        #botonAyudaNav, #botonAlternarDivision, #botonPisoArriba, #botonPisoAbajo { width: 36px; height: 36px; }
+        #botonAlternarDivision { left: var(--margen); }
+        #panelAyudaNav { bottom: 46px; }
+        #chipPuerta { height: 36px; font-size: 12.5px; bottom: calc(var(--margen) + 44px); }
+        #notaVista {
+            top: calc(var(--margen) + 44px);
+            bottom: auto;
+            width: auto;
+            right: var(--margen);
+            padding: 9px 12px 10px;
+            border-radius: 12px;
+        }
+        #indiceNotaVista { display: none; }
+        .encabezado-nota { position: absolute; top: 6px; right: 8px; margin: 0; }
+        #tituloNotaVista { font-size: 13.5px; margin: 0 22px 2px 0; }
+        #textoNotaVista {
+            font-size: 12px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            overflow: hidden;
+        }
+        #notaVista.expandida #textoNotaVista { -webkit-line-clamp: unset; }
+    }
+    #botonAyudaNav[hidden] { display: none; }
+
+    #chipPuerta.chip-oculto {
+        opacity: 0;
+        transform: translate(-50%, 12px);
+        pointer-events: none;
+    }
+    #panelAyudaNav {
+        position: absolute;
+        bottom: 48px;
+        left: 0;
+        color: var(--texto-suave);
+        background: var(--vidrio);
+        border: 1px solid var(--borde);
+        padding: 8px 14px;
+        border-radius: 12px;
+        font-size: 12px;
+        white-space: nowrap;
+        backdrop-filter: var(--desenfoque);
+    }
+    #panelAyudaNav[hidden] { display: none; }
+
+    #cargando {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--fondo);
+        z-index: 20;
+        transition: opacity 0.4s;
+    }
+    #cargando.oculto { opacity: 0; pointer-events: none; }
+    #marcaCarga {
+        position: absolute;
+        bottom: 48px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+    }
+    #marcaCarga svg { height: 40px; width: auto; }
+    .lema-carga {
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        color: rgba(244,244,242,0.55);
+    }
+    .cargando-anim {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 3px solid rgba(255,255,255,0.15);
+        border-top-color: var(--acento);
+        animation: girar 0.8s linear infinite;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+
+    #transicion {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 15;
+        transition: opacity 0.35s ease;
+    }
+    #transicion.activo { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="cargando">
+    <div id="marcaCarga">
+    <svg viewBox="100 178 650 238" fill="#e8622c">
+        <g>
+            <g>
+                <path d="M688.5,407.33l-.49-124.58c-2.56-7.9-8.41-12.43-16.14-15.63h-115.37c-.39-11.96,4.76-23,14.16-30.07,6.52-4.91,14.2-5.81,22.51-5.82l83.53-.11c6.87,0,13.87,3.2,20,5.74,19.92,8.24,32.95,25.95,34.55,47.68l.05,122.82h-42.8Z"></path>
+                <path d="M593.35,407.34h-36.94s.01-130.76.01-130.76c17.25,0,32.48,11.55,35.76,28.91l1.17,101.85Z"></path>
+            </g>
+            <g>
+                <path d="M218.66,367.23l.12,36.41-54.54-.51c-15.04.56-29.04-4.4-39.25-15.64-8.12-8.93-14.16-20.68-14.18-33.22l-.12-81.86c18.41.23,34.84,12.93,36.06,31.12l.81,50.88c1.93,5.54,7.1,13.31,13.88,13.33l41.53.13,15.7-.65Z"></path>
+                <polygon points="218.62 227.24 218.76 263.48 110.59 263.48 110.6 187.98 147.5 187.93 147.53 227.26 218.62 227.24"></polygon>
+                <g>
+                    <path d="M278.56,328.97l.31,74.49h-37s.07-131.18.07-131.18c15.65.7,31.7,10.62,35.01,26.14,2.07,9.69,1.57,19.95,1.61,30.55Z"></path>
+                    <path d="M357.44,263.45l-115.33-.89c-.08-16.03,9.93-30.59,25.4-34.87l68.2-.76,21.74-.5v37.03Z"></path>
+                </g>
+            </g>
+        </g>
+        <path d="M537.46,319.08c0,47.94-38.9,86.81-86.88,86.81s-86.88-38.87-86.88-86.81,38.9-86.81,86.88-86.81,86.88,38.87,86.88,86.81ZM497.45,319.12c0-25.87-20.99-46.84-46.87-46.84s-46.87,20.97-46.87,46.84,20.99,46.84,46.87,46.84,46.87-20.97,46.87-46.84Z"></path>
+    </svg>
+    <div class="lema-carga">Escaneos 3D · Topografía</div>
+    </div>
+    <div class="cargando-anim"></div>
+</div>
+<div id="transicion"></div>
+
+<div id="interfaz">
+    <svg id="svgCursorNav" style="position:absolute;inset:0;pointer-events:none;overflow:visible;display:none;">
+        <polygon id="anilloCursorNav" fill="#fff" fill-opacity="0.35" stroke="#fff" stroke-opacity="0.85" stroke-width="1.5"></polygon>
+    </svg>
+    <div id="marca">
+        <svg viewBox="0 0 841.89 595.28" fill="#e8622c">
+            <g>
+                <g>
+                    <path d="M688.5,407.33l-.49-124.58c-2.56-7.9-8.41-12.43-16.14-15.63h-115.37c-.39-11.96,4.76-23,14.16-30.07,6.52-4.91,14.2-5.81,22.51-5.82l83.53-.11c6.87,0,13.87,3.2,20,5.74,19.92,8.24,32.95,25.95,34.55,47.68l.05,122.82h-42.8Z"></path>
+                    <path d="M593.35,407.34h-36.94s.01-130.76.01-130.76c17.25,0,32.48,11.55,35.76,28.91l1.17,101.85Z"></path>
+                </g>
+                <g>
+                    <path d="M218.66,367.23l.12,36.41-54.54-.51c-15.04.56-29.04-4.4-39.25-15.64-8.12-8.93-14.16-20.68-14.18-33.22l-.12-81.86c18.41.23,34.84,12.93,36.06,31.12l.81,50.88c1.93,5.54,7.1,13.31,13.88,13.33l41.53.13,15.7-.65Z"></path>
+                    <polygon points="218.62 227.24 218.76 263.48 110.59 263.48 110.6 187.98 147.5 187.93 147.53 227.26 218.62 227.24"></polygon>
+                    <g>
+                        <path d="M278.56,328.97l.31,74.49h-37s.07-131.18.07-131.18c15.65.7,31.7,10.62,35.01,26.14,2.07,9.69,1.57,19.95,1.61,30.55Z"></path>
+                        <path d="M357.44,263.45l-115.33-.89c-.08-16.03,9.93-30.59,25.4-34.87l68.2-.76,21.74-.5v37.03Z"></path>
+                    </g>
+                </g>
+            </g>
+            <path d="M537.46,319.08c0,47.94-38.9,86.81-86.88,86.81s-86.88-38.87-86.88-86.81,38.9-86.81,86.88-86.81,86.88,38.87,86.88,86.81ZM497.45,319.12c0-25.87-20.99-46.84-46.87-46.84s-46.87,20.97-46.87,46.84,20.99,46.84,46.87,46.84,46.87-20.97,46.87-46.84Z"></path>
+        </svg>
+        <strong>CASA KALI</strong>
+    </div>
+    <div id="selectorPisos">
+        <button id="botonExterior" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 10.5 12 3l9 7.5"></path>
+                <path d="M5 9v12h14V9"></path>
+                <path d="M10 21v-6h4v6"></path>
+            </svg>
+            <span id="etiquetaBotonExterior">Ver exterior</span>
+        </button>
+        <div id="minimapaVertical" hidden>
+            <button id="botonPisoArriba" aria-label="Subir de piso" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </button>
+            <button id="botonPisoAbajo" aria-label="Bajar de piso" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+        </div>
+        <button id="botonMenuPisos" aria-label="Seleccionar piso" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="2" width="16" height="20"></rect>
+                <line x1="4" y1="8" x2="20" y2="8"></line>
+                <line x1="4" y1="13" x2="20" y2="13"></line>
+                <line x1="4" y1="18" x2="20" y2="18"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+            </svg>
+            <span id="etiquetaMenuPisos">EXTERIOR</span>
+        </button>
+        <div id="menuPisos" hidden>
+            <button class="boton-piso" data-piso="REASCOMUNES">REASCOMUNES</button>
+            <button class="boton-piso" data-piso="EXT">EXTERIOR</button>
+            <button class="boton-piso" data-piso="DEPT01">DEPARTAMENTO 01</button>
+            <button class="boton-piso" data-piso="DEPT02">DEPARTAMENTO 02</button>
+            <button class="boton-piso" data-piso="DEPT03">DEPARTAMENTO 03</button>
+            <button class="boton-piso" data-piso="DEPT04">DEPARTAMENTO 04</button>
+            <button class="boton-piso" data-piso="DEPT05">DEPARTAMENTO 05</button>
+            <button class="boton-piso" data-piso="DEPT06">DEPARTAMENTO 06</button>
+            <button class="boton-piso" data-piso="DEPT07">DEPARTAMENTO 07</button>
+            <button class="boton-piso" data-piso="DEPT08">DEPARTAMENTO 08</button>
+            <button class="boton-piso" data-piso="DEPT09">DEPARTAMENTO 09</button>
+            <button class="boton-piso" data-piso="DEPT10">DEPARTAMENTO 10</button>
+            <button class="boton-piso" data-piso="DEPT11">DEPARTAMENTO 11</button>
+        </div>
+    </div>
+    <div id="panelMinimapa" hidden>
+        <div id="minimapaLienzo" hidden>
+            <img id="minimapaImagen" alt="">
+            <div id="minimapaMarcadores"></div>
+            <div id="minimapaJugador">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2 L19 21 L12 16.5 L5 21 Z"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div id="capaPov">
+        <button id="chipPuerta" class="chip-oculto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="3" width="14" height="18" rx="1"></rect>
+                <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"></circle>
+            </svg>
+            <span id="etiquetaChipPuerta"></span>
+        </button>
+        <div id="notaVista" class="nota-oculta" aria-live="polite">
+            <div class="encabezado-nota">
+                <span id="indiceNotaVista"></span>
+                <button id="cerrarNotaVista" aria-label="Cerrar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+                </button>
+            </div>
+            <h3 id="tituloNotaVista"></h3>
+            <p id="textoNotaVista"></p>
+        </div>
+        <div id="selectorVistas" hidden>
+            <button id="botonVistaAnterior" class="boton-selector-vista" aria-label="Vista anterior">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <div id="puntosVista"></div>
+            <button id="botonVistaSiguiente" class="boton-selector-vista" aria-label="Vista siguiente">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+        </div>
+        <div id="selectorModoNav" hidden>
+            <button id="botonModoCaminar" class="boton-modo-nav" data-modo="caminar" aria-label="Modo caminar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="4" r="2"></circle>
+                    <path d="M12 6v6M12 9l-3 3M12 9l3 3M12 12l-3 8M12 12l3 8"></path>
+                </svg>
+            </button>
+            <button id="botonModoVuelo" class="boton-modo-nav" data-modo="vuelo" aria-label="Modo vuelo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
+        <div id="ayudaNav">
+            <div id="panelAyudaNav" hidden></div>
+            <button id="botonAyudaNav" aria-label="Controles" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="17" x2="12" y2="11"></line>
+                    <line x1="12" y1="7.5" x2="12" y2="7.5"></line>
+                </svg>
+            </button>
+        </div>
+        <button id="botonAlternarDivision" aria-label="Alternar mapa en pantalla dividida" aria-pressed="false" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+            </svg>
+        </button>
+    </div>
+
+    <div id="panelEditor" hidden>
+        <div class="encabezado-editor">Modo Edición</div>
+        <div id="lecturaEditor"></div>
+
+        <div class="etiqueta-seccion-editor">Punto de inicio</div>
+        <button id="botonSpawnAqui">Marcar inicio aquí</button>
+        <div id="estadoSpawn"></div>
+
+        <div class="etiqueta-seccion-editor">Foco de órbita</div>
+        <button id="botonLibreOrbita">Movimiento libre: OFF</button>
+        <button id="botonFocoAqui">Marcar foco aquí</button>
+        <div id="estadoFoco"></div>
+
+        <div class="etiqueta-seccion-editor">Vistas</div>
+        <button id="botonAgregarVista">+ Vista aquí</button>
+        <div id="listaVistas"></div>
+
+        <div class="etiqueta-seccion-editor">Portales</div>
+        <div class="fila-editor">
+            <button id="botonAccionPortal">Iniciar portal aquí</button>
+            <button id="botonCancelarPortal" hidden>Cancelar</button>
+        </div>
+        <div id="estadoPortal"></div>
+        <div id="listaPortales"></div>
+
+        <button id="botonExportar">Exportar cambios…</button>
+    </div>
+
+    <div id="modalExportar" hidden>
+        <div id="cajaModalExportar">
+            <p>El conjunto completo actual de vistas y portales. Pega esto en el manifiesto PISOS para los pisos correspondientes, reemplazando lo que haya.</p>
+            <textarea id="textoExportar" readonly></textarea>
+            <div class="fila-editor">
+                <button id="botonCopiarExportar">Copiar</button>
+                <button id="botonCerrarExportar">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<pc-app id="aplicacion" backend="webgl2" antialias="true" depth-buffer="false" max-pixel-ratio="2" stencil-buffer="false">
+    <script>
+        (function () {
+            var esMovil = /Android|iPhone|iPod|iPad|Mobile|Windows Phone/i.test(navigator.userAgent) ||
+                (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+            window.__esMovil = esMovil;
+            if (esMovil) {
+                var app = document.currentScript.parentElement;
+                app.setAttribute('antialias', 'false');
+                app.setAttribute('max-pixel-ratio', '1');
+            }
+        })();
+    </script>
+    <pc-scene>
+        <pc-entity name="raiz-camara">
+            <pc-entity name="camara" position="0 1.6 4">
+                <pc-camera near-clip="0.02" far-clip="1000" fov="65" clear-color="0.04 0.04 0.05 1"></pc-camera>
+            </pc-entity>
+        </pc-entity>
+
+        <pc-entity id="raizPiso" name="raizPiso"></pc-entity>
+    </pc-scene>
+</pc-app>
+
+<script type="module">
+    import * as pc from 'playcanvas';
+
+    const PISOS = {
+        REASCOMUNES: {
+            etiqueta: 'Áreas Comunes',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/aff2dfee/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/aff2dfee/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/aff2dfee/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [6.944, 0.44, 0.735], rotacion: [6, -85.9, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [6.944, 0.44, 0.735], rotacion: [6, 274.1, 0], titulo: 'Acceso principal', descripcion: 'Reja de hierro forjado que abre hacia el patio central: piso de mosaico, macetas de barro y una pequeña sala exterior para recibir a los huéspedes.' },
+                { etiqueta: 'v2', posicion: [18, 0.762, -0.856], rotacion: [0.3, 244.4, 0], titulo: 'Nicho de cerámica', descripcion: 'Repisas empotradas en arco con piezas de talavera y vidrio, junto a una mesa de madera rústica. Un detalle artesanal del área común.' },
+                { etiqueta: 'v3', posicion: [26.65, 0.762, -1.8], rotacion: [2.4, 400.1, 0], titulo: 'Comedor del patio', descripcion: 'Zona de comedor junto al patio, con piso de barro, puertas en azul añil y lámparas colgantes.' },
+                { etiqueta: 'v4', posicion: [12.336, 0.62, -2.468], rotacion: [-6.5, 581.1, 0], titulo: 'Alberca de inmersión', descripcion: 'Alberca de cantera rodeada por un muro de azulejo verde esmaltado y plantas tropicales, con una barra y bancos de hierro bajo el ventanal en arco.' },
+                { etiqueta: 'v5', posicion: [7.497, 5.8, -4.105], rotacion: [-5.3, -91.5, 0], titulo: 'Pasillo de departamentos', descripcion: 'Corredor de la planta alta con puertas en azul añil hacia los departamentos y lámparas de vidrio geométricas a lo largo del techo.' },
+                { etiqueta: 'v6', posicion: [24.784, 5.17, 0.968], rotacion: [0.1, -299.6, 0], titulo: 'Terraza', descripcion: 'Terraza en el nivel superior con macetas de barro, celosías de ladrillo y mesas al aire libre, frente a los departamentos de arriba.' }
+            ],
+            portales: [
+                { destino: 'DEPT02', posMundo: [9.713, 0.67, -3.53], llegada: { posicion: [0.943, -0.45, -0.716], rotacion: [6.3, -126.2, 0] } },
+                { destino: 'DEPT01', posMundo: [5.209, 0.5, -3.563], llegada: { posicion: [-1.025, 1.12, -0.281], rotacion: [4.9, -124.5, 0] } },
+                { destino: 'DEPT03', posMundo: [14.959, 0.71, -3.444], llegada: { posicion: [-0.851, 1.1, -0.5], rotacion: [3.7, -122.1, 0] } },
+                { destino: 'DEPT04', posMundo: [20.119, 0.76, -3.284], llegada: { posicion: [0.125, 1.15, 0.154], rotacion: [3.1, -103.6, 0] } },
+                { destino: 'DEPT05', posMundo: [24.006, 0.79, -1.289], llegada: { posicion: [0.877, 1.1, 0.294], rotacion: [-6.9, -40, 0] } },
+                { destino: 'DEPT06', posMundo: [27.323, 4, -5.076], llegada: { posicion: [-0.25, 1.15, 0.177], rotacion: [-5.8, -393.2, 0] } },
+                { destino: 'DEPT07', posMundo: [4.986, 5.8, -4.744], llegada: { posicion: [0.609, -0.45, -0.464], rotacion: [1.3, -115.5, 0] } },
+                { destino: 'DEPT08', posMundo: [9.699, 5.81, -3.77], llegada: { posicion: [0.521, 0.35, 3.15], rotacion: [-4.1, -356.7, 0] } },
+                { destino: 'DEPT09', posMundo: [10.675, 5.8, -4.834], llegada: { posicion: [-1.169, 1.11, -0.552], rotacion: [-7.7, -119.3, 0] } },
+                { destino: 'DEPT10', posMundo: [17.075, 5.847, -4.3], llegada: { posicion: [0.153, 0.05, 0.081], rotacion: [3.1, -60.1, 0] } },
+                { destino: 'DEPT11', posMundo: [18.157, 5.85, -4.6], llegada: { posicion: [-1.372, 1.1, -0.401], rotacion: [-1, -116.4, 0] } }
+            ],
+            // Each pose faces away from its door (into the corridor). DEPT10 has none on purpose.
+            bloqueosPuerta: [
+                { posicion: [5.45, 0.53, -3.5], rotacion: [-3.3, -184.2, 0] },
+                { posicion: [9.9, 0.73, -3.6], rotacion: [-5.2, -196.9, 0] },
+                { posicion: [14.816, 0.75, -3.43], rotacion: [-1.8, -542.5, 0] },
+                { posicion: [20.016, 0.8, -3.386], rotacion: [3.6, -564.3, 0] },
+                { posicion: [24.151, 0.8, -1.297], rotacion: [-5.6, -372, 0] },
+                { posicion: [27.45, 3.83, -4.9], rotacion: [-13, -167.8, 0] },
+                { posicion: [5.2, 5.82, -4.75], rotacion: [-1.7, -558.4, 0] },
+                { posicion: [9.884, 5.85, -3.729], rotacion: [-4.5, -353.7, 0] },
+                { posicion: [10.675, 5.8, -4.834], rotacion: [0, -146.2, 0] },
+                { posicion: [18.074, 5.85, -4.475], rotacion: [0, 146.2, 0] }
+            ]
+        },
+        EXT: {
+            etiqueta: 'Exterior',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/fe696614/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/fe696614/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/fe696614/v1/scene.voxel.bin'
+            },
+            modoNav: 'orbita',
+            focoOrbita: [14.771, 1.833, -1.03],
+            distanciaOrbita: 20,
+            inicioOrbita: { guiñada: 0, cabeceo: 30 },
+            holguraOrbita: 3,
+            vistas: [],
+            portales: []
+        },
+        DEPT01: {
+            etiqueta: 'Departamento 01',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/5d2a0cbb/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/5d2a0cbb/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/5d2a0cbb/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [-1.025, 1.27, -0.281], rotacion: [4.9, -124.5, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [-1.025, 1.27, -0.281], rotacion: [4.9, -124.5, 0] },
+                { etiqueta: 'v2', posicion: [2.303, 3.46, -0.955], rotacion: [-10.7, -228.8, 0] },
+                { etiqueta: 'v3', posicion: [0.934, 1.26, -0.08], rotacion: [-10.4, -71.4, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [-1.025, 1.12, -0.281], llegada: { posicion: [5.209, 0.5, -3.563], rotacion: [4.9, 55.5, 0] } }
+            ]
+        },
+        DEPT02: {
+            etiqueta: 'Departamento 02',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/8614b57e/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/8614b57e/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/8614b57e/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [0.943, -0.45, -0.716], rotacion: [6.3, -126.2, 0] },
+            bloqueoPuerta: { posicion: [1.185, -0.45, -0.539], rotacion: [6.3, -126.2, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [0.943, -0.45, -0.716], rotacion: [6.3, -126.2, 0] },
+                { etiqueta: 'v2', posicion: [4.25, 1.763, -0.9], rotacion: [-12.9, -220.1, 0] },
+                { etiqueta: 'v3', posicion: [3.126, -0.45, 0.191], rotacion: [-9.9, -69.7, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [0.943, -0.45, -0.716], llegada: { posicion: [9.713, 0.67, -3.53], rotacion: [6.3, 53.8, 0] } }
+            ]
+        },
+        DEPT03: {
+            etiqueta: 'Departamento 03',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/7f74265c/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/7f74265c/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/7f74265c/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [-0.851, 1.26, -0.5], rotacion: [3.7, -122.1, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [-0.851, 1.26, -0.5], rotacion: [3.7, -122.1, 0] },
+                { etiqueta: 'v2', posicion: [2.451, 3.5, -1.176], rotacion: [-16.5, -230.6, 0] },
+                { etiqueta: 'v3', posicion: [0.854, 1.25, 0.079], rotacion: [-13.3, -66.9, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [-0.851, 1.1, -0.5], llegada: { posicion: [14.959, 0.71, -3.444], rotacion: [3.7, 57.9, 0] } }
+            ]
+        },
+        DEPT04: {
+            etiqueta: 'Departamento 04',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/561b93af/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/561b93af/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/561b93af/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [0.125, 1.29, 0.154], rotacion: [3.1, -103.6, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [0.125, 1.29, 0.154], rotacion: [3.1, -103.6, 0] },
+                { etiqueta: 'v2', posicion: [3.7, 3.733, -1.7], rotacion: [-20, -223.7, 0] },
+                { etiqueta: 'v3', posicion: [2.351, 1.3, -0.859], rotacion: [-14.4, -72.1, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [0.125, 1.15, 0.154], llegada: { posicion: [20.119, 0.76, -3.284], rotacion: [3.1, 76.4, 0] } }
+            ]
+        },
+        DEPT05: {
+            etiqueta: 'Departamento 05',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/6a447fd8/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/6a447fd8/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/6a447fd8/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [0.877, 1.27, 0.294], rotacion: [-6.9, -40, 0] },
+            bloqueoPuerta: { posicion: [0, 1.15, 0.08], rotacion: [-11.1, -474.2, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [0.877, 1.27, 0.294], rotacion: [-6.9, -40, 0] },
+                { etiqueta: 'v2', posicion: [2.297, 1.77, -2.71], rotacion: [-27.9, -220.2, 0] },
+                { etiqueta: 'v3', posicion: [0.58, 1.3, 0.762], rotacion: [-8.5, -145.1, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [0.877, 1.1, 0.294], llegada: { posicion: [24.006, 0.79, -1.289], rotacion: [-6.9, 140, 0] } }
+            ]
+        },
+        DEPT06: {
+            etiqueta: 'Departamento 06',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/a90664d6/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/a90664d6/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/a90664d6/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [-0.4, 1.193, 0.177], rotacion: [-5.8, -393.2, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [-0.4, 1.193, 0.177], rotacion: [-5.8, -393.2, 0] },
+                { etiqueta: 'v2', posicion: [-0.25, 1.2, -3.65], rotacion: [-4.7, -494, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [-0.25, 1.15, 0.177], llegada: { posicion: [27.323, 4, -5.076], rotacion: [-5.8, -213.2, 0] } }
+            ]
+        },
+        DEPT07: {
+            etiqueta: 'Departamento 07',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/0ab3c03b/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/0ab3c03b/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/0ab3c03b/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [0.609, -0.45, -0.464], rotacion: [1.3, -115.5, 0] },
+            bloqueoPuerta: { posicion: [0.88, -0.45, -0.335], rotacion: [1.3, -115.5, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [0.609, -0.45, -0.464], rotacion: [1.3, -115.5, 0] },
+                { etiqueta: 'v2', posicion: [3.05, -0.488, -0.263], rotacion: [-4.1, -217.9, 0] },
+                { etiqueta: 'v3', posicion: [0.957, -0.438, 2.55], rotacion: [-1.8, -429.3, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [0.609, -0.45, -0.464], llegada: { posicion: [4.986, 5.8, -4.744], rotacion: [1.3, 64.5, 0] } }
+            ]
+        },
+        DEPT08: {
+            etiqueta: 'Departamento 08',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/fdeb3f67/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/fdeb3f67/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/fdeb3f67/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [0.521, 0.36, 3.15], rotacion: [-4.1, -356.7, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [0.521, 0.36, 3.15], rotacion: [-4.1, -356.7, 0] },
+                { etiqueta: 'v2', posicion: [-0.943, 0.35, 0.042], rotacion: [-4.7, -401.1, 0] },
+                { etiqueta: 'v3', posicion: [1.269, 0.37, 0.419], rotacion: [-15.9, -580.6, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [0.521, 0.35, 3.15], llegada: { posicion: [9.699, 5.81, -3.77], rotacion: [-4.1, -176.7, 0] } }
+            ]
+        },
+        DEPT09: {
+            etiqueta: 'Departamento 09',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/534c9e58/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/534c9e58/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/534c9e58/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [-1.169, 1.11, -0.552], rotacion: [-7.7, -119.3, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [-1.169, 1.11, -0.552], rotacion: [-7.7, -119.3, 0] },
+                { etiqueta: 'v2', posicion: [-0.95, 1.15, 1.598], rotacion: [-8.3, -29.3, 0] },
+                { etiqueta: 'v3', posicion: [1.202, 1.1, -1.347], rotacion: [5.1, 68.5, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [-1.169, 1.11, -0.552], llegada: { posicion: [10.675, 5.8, -4.834], rotacion: [-7.7, 60.7, 0] } }
+            ]
+        },
+        DEPT10: {
+            etiqueta: 'Departamento 10',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/196eb872/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/196eb872/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/196eb872/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [0.153, 0.05, 0.081], rotacion: [3.1, -60.1, 0] },
+            bloqueoPuerta: { posicion: [0.413, 0.05, -0.069], rotacion: [3.1, -60.1, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [0.153, 0.05, 0.081], rotacion: [3.1, -60.1, 0] },
+                { etiqueta: 'v2', posicion: [2.45, 0.063, 0.1], rotacion: [-10.2, 47.4, 0] },
+                { etiqueta: 'v3', posicion: [0.45, 0.063, -2.663], rotacion: [-3.8, -126.3, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [0.153, 0.05, 0.081], llegada: { posicion: [17.075, 5.847, -4.3], rotacion: [3.1, 119.9, 0] } }
+            ]
+        },
+        DEPT11: {
+            etiqueta: 'Departamento 11',
+            fuente: 'https://d28zzqy0iyovbz.cloudfront.net/aec57ef9/v1/lod-meta.json',
+            voxel: {
+                json: 'https://d28zzqy0iyovbz.cloudfront.net/aec57ef9/v1/scene.voxel.json',
+                bin: 'https://d28zzqy0iyovbz.cloudfront.net/aec57ef9/v1/scene.voxel.bin'
+            },
+            inicioCamara: { posicion: [-1.372, 1.1, -0.401], rotacion: [-1, -116.4, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [-1.372, 1.1, -0.401], rotacion: [-1, -116.4, 0] },
+                { etiqueta: 'v2', posicion: [0.854, 1.15, 2.3], rotacion: [-2.7, -240.6, 0] }
+            ],
+            portales: [
+                { destino: 'REASCOMUNES', posMundo: [-1.372, 1.1, -0.401], llegada: { posicion: [18.157, 5.85, -4.6], rotacion: [-1, 63.6, 0] } }
+            ]
+        }
+    };
+
+    const EPSILON_PENETRACION = 1e-4;
+    const MAX_ITERACIONES_RESOLUCION = 4;
+
+    function resolverIterativo(cx, cy, cz, encontrarPenetracion, normalesRestriccion, temporal, salida) {
+        let rx = cx, ry = cy, rz = cz;
+        let totalX = 0, totalY = 0, totalZ = 0;
+        let huboColision = false;
+        let numNormales = 0;
+
+        for (let iter = 0; iter < MAX_ITERACIONES_RESOLUCION; iter++) {
+            if (!encontrarPenetracion(rx, ry, rz, temporal)) break;
+            huboColision = true;
+
+            let px = temporal.x, py = temporal.y, pz = temporal.z;
+            for (let i = 0; i < numNormales; i++) {
+                const n = normalesRestriccion[i];
+                const dot = px * n.x + py * n.y + pz * n.z;
+                if (dot < 0) { px -= dot * n.x; py -= dot * n.y; pz -= dot * n.z; }
+            }
+
+            const len = Math.sqrt(temporal.x * temporal.x + temporal.y * temporal.y + temporal.z * temporal.z);
+            if (len > EPSILON_PENETRACION && numNormales < 3) {
+                const inv = 1 / len;
+                const n = normalesRestriccion[numNormales];
+                n.x = temporal.x * inv; n.y = temporal.y * inv; n.z = temporal.z * inv;
+                numNormales++;
+            }
+
+            rx += px; ry += py; rz += pz;
+            totalX += px; totalY += py; totalZ += pz;
+        }
+
+        const totalSq = totalX * totalX + totalY * totalY + totalZ * totalZ;
+        if (huboColision && totalSq > EPSILON_PENETRACION * EPSILON_PENETRACION) {
+            salida.x = totalX; salida.y = totalY; salida.z = totalZ;
+            return true;
+        }
+        return false;
+    }
+
+    class GrillaVoxel {
+        static async cargar(urls, offset) {
+            const [meta, buf] = await Promise.all([
+                fetch(urls.json).then(r => r.json()),
+                fetch(urls.bin).then(r => r.arrayBuffer())
+            ]);
+            const nodos = new Uint32Array(buf, 0, meta.nodeCount);
+            const datosHoja = new Uint32Array(buf, meta.nodeCount * 4, meta.leafDataCount);
+            const grilla = new GrillaVoxel(meta, nodos, datosHoja, offset);
+            if (urls.rotated === false) grilla.rotado = false;
+            return grilla;
+        }
+
+        constructor(meta, nodos, datosHoja, offset = [0, 0, 0]) {
+            this.minimo = meta.gridBounds.min;
+            this.maximo = meta.gridBounds.max;
+            this.limitesEscena = meta.sceneBounds || null;
+            this.resolucion = meta.voxelResolution;
+            this.tamanoHoja = meta.leafSize;
+            this.profundidadArbol = meta.treeDepth;
+            this.expansion = meta.leafSize * (1 << meta.treeDepth);
+            this.nodos = nodos;
+            this.datosHoja = datosHoja;
+            this.rotado = true;
+            this.offset = offset;
+
+            this.minimoEfectivo = this.minimo;
+            this.maximoEfectivo = this.maximo;
+            if (meta.sceneBounds) {
+                this.minimoEfectivo = [
+                    Math.max(this.minimo[0], meta.sceneBounds.min[0]),
+                    Math.max(this.minimo[1], meta.sceneBounds.min[1]),
+                    Math.max(this.minimo[2], meta.sceneBounds.min[2])
+                ];
+                this.maximoEfectivo = [
+                    Math.min(this.maximo[0], meta.sceneBounds.max[0]),
+                    Math.min(this.maximo[1], meta.sceneBounds.max[1]),
+                    Math.min(this.maximo[2], meta.sceneBounds.max[2])
+                ];
+            }
+
+            this.numVoxelsX = Math.round((this.maximo[0] - this.minimo[0]) / this.resolucion);
+            this.numVoxelsY = Math.round((this.maximo[1] - this.minimo[1]) / this.resolucion);
+            this.numVoxelsZ = Math.round((this.maximo[2] - this.minimo[2]) / this.resolucion);
+            this._temporalPenetracion = { x: 0, y: 0, z: 0 };
+            this._empujeEspacioGrilla = { x: 0, y: 0, z: 0 };
+            this._normalesRestriccion = [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }];
+        }
+
+        transformar(wx0, wy0, wz0) {
+            if (this.rotado) {
+                return [-wx0 + this.offset[0], wy0 + this.offset[1], -wz0 + this.offset[2]];
+            }
+            return [wx0 + this.offset[0], wy0 + this.offset[1], wz0 + this.offset[2]];
+        }
+
+        transformarInverso(vx0, vy0, vz0) {
+            const ux = vx0 - this.offset[0];
+            const uy = vy0 - this.offset[1];
+            const uz = vz0 - this.offset[2];
+            return this.rotado ? [-ux, uy, -uz] : [ux, uy, uz];
+        }
+
+        transformarDireccion(dx, dy, dz) {
+            return this.rotado ? [-dx, dy, -dz] : [dx, dy, dz];
+        }
+
+        esSolido(wx0, wy0, wz0, fueraEsSolido = true, margenLimites = 0) {
+            const [wx, wy, wz] = this.transformar(wx0, wy0, wz0);
+            if (wx < this.minimoEfectivo[0] + margenLimites || wx > this.maximoEfectivo[0] - margenLimites ||
+                wy < this.minimoEfectivo[1] + margenLimites || wy > this.maximoEfectivo[1] - margenLimites ||
+                wz < this.minimoEfectivo[2] + margenLimites || wz > this.maximoEfectivo[2] - margenLimites) {
+                return fueraEsSolido;
+            }
+
+            const vx = Math.floor((wx - this.minimo[0]) / this.resolucion);
+            const vy = Math.floor((wy - this.minimo[1]) / this.resolucion);
+            const vz = Math.floor((wz - this.minimo[2]) / this.resolucion);
+            return this._esSolidoIndice(vx, vy, vz);
+        }
+
+        _esSolidoIndice(vx, vy, vz) {
+            let idx = 0;
+            let tamanoCelda = this.expansion;
+            let ox = 0, oy = 0, oz = 0;
+
+            for (let nivel = 0; nivel <= this.profundidadArbol; nivel++) {
+                const palabra = this.nodos[idx];
+                if (palabra === 0xFF000000) return true;
+                if ((palabra >>> 24) === 0) {
+                    const lx = vx - ox, ly = vy - oy, lz = vz - oz;
+                    const bit = lx + (ly << 2) + (lz << 4);
+                    const lo = this.datosHoja[2 * palabra];
+                    const hi = this.datosHoja[2 * palabra + 1];
+                    return bit < 32 ? ((lo >>> bit) & 1) === 1 : ((hi >>> (bit - 32)) & 1) === 1;
+                }
+
+                const mascaraHijos = palabra >>> 24;
+                const primerHijo = palabra & 0xFFFFFF;
+                const mitad = tamanoCelda >> 1;
+                const bx = vx >= ox + mitad ? 1 : 0;
+                const by = vy >= oy + mitad ? 1 : 0;
+                const bz = vz >= oz + mitad ? 1 : 0;
+                const oct = bx | (by << 1) | (bz << 2);
+
+                if (!((mascaraHijos >> oct) & 1)) return false;
+
+                let popcount = 0;
+                for (let b = 0; b < oct; b++) popcount += (mascaraHijos >> b) & 1;
+                idx = primerHijo + popcount;
+                tamanoCelda = mitad;
+                ox += bx * mitad; oy += by * mitad; oz += bz * mitad;
+            }
+            return false;
+        }
+
+        _esVoxelSolido(vx, vy, vz) {
+            if (vx < 0 || vy < 0 || vz < 0 || vx >= this.numVoxelsX || vy >= this.numVoxelsY || vz >= this.numVoxelsZ) {
+                return false;
+            }
+            return this._esSolidoIndice(vx, vy, vz);
+        }
+
+        consultarRayo(ox0, oy0, oz0, dx0, dy0, dz0, distMax) {
+            const [ox, oy, oz] = this.transformar(ox0, oy0, oz0);
+            const [dx, dy, dz] = this.transformarDireccion(dx0, dy0, dz0);
+
+            const gMinX = this.minimo[0], gMinY = this.minimo[1], gMinZ = this.minimo[2];
+            const gMaxX = this.maximo[0], gMaxY = this.maximo[1], gMaxZ = this.maximo[2];
+            const EPS = 1e-12;
+
+            let tCerca = 0, tLejos = distMax;
+
+            if (Math.abs(dx) > EPS) {
+                let t1 = (gMinX - ox) / dx, t2 = (gMaxX - ox) / dx;
+                if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+                if (t1 > tCerca) tCerca = t1;
+                tLejos = Math.min(tLejos, t2);
+                if (tCerca > tLejos) return null;
+            } else if (ox < gMinX || ox > gMaxX) {
+                return null;
+            }
+
+            if (Math.abs(dy) > EPS) {
+                let t1 = (gMinY - oy) / dy, t2 = (gMaxY - oy) / dy;
+                if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+                if (t1 > tCerca) tCerca = t1;
+                tLejos = Math.min(tLejos, t2);
+                if (tCerca > tLejos) return null;
+            } else if (oy < gMinY || oy > gMaxY) {
+                return null;
+            }
+
+            if (Math.abs(dz) > EPS) {
+                let t1 = (gMinZ - oz) / dz, t2 = (gMaxZ - oz) / dz;
+                if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+                if (t1 > tCerca) tCerca = t1;
+                tLejos = Math.min(tLejos, t2);
+                if (tCerca > tLejos) return null;
+            } else if (oz < gMinZ || oz > gMaxZ) {
+                return null;
+            }
+
+            const entradaX = ox + dx * tCerca, entradaY = oy + dy * tCerca, entradaZ = oz + dz * tCerca;
+            let ix = Math.max(0, Math.min(Math.floor((entradaX - gMinX) / this.resolucion), this.numVoxelsX - 1));
+            let iy = Math.max(0, Math.min(Math.floor((entradaY - gMinY) / this.resolucion), this.numVoxelsY - 1));
+            let iz = Math.max(0, Math.min(Math.floor((entradaZ - gMinZ) / this.resolucion), this.numVoxelsZ - 1));
+
+            const pasoX = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+            const pasoY = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+            const pasoZ = dz > 0 ? 1 : dz < 0 ? -1 : 0;
+            const invDx = Math.abs(dx) > EPS ? 1 / dx : 0;
+            const invDy = Math.abs(dy) > EPS ? 1 / dy : 0;
+            const invDz = Math.abs(dz) > EPS ? 1 / dz : 0;
+
+            let tMaxX = Math.abs(dx) > EPS ? (gMinX + (ix + (dx > 0 ? 1 : 0)) * this.resolucion - ox) * invDx : Infinity;
+            let tMaxY = Math.abs(dy) > EPS ? (gMinY + (iy + (dy > 0 ? 1 : 0)) * this.resolucion - oy) * invDy : Infinity;
+            let tMaxZ = Math.abs(dz) > EPS ? (gMinZ + (iz + (dz > 0 ? 1 : 0)) * this.resolucion - oz) * invDz : Infinity;
+            const tDeltaX = Math.abs(dx) > EPS ? this.resolucion * Math.abs(invDx) : Infinity;
+            const tDeltaY = Math.abs(dy) > EPS ? this.resolucion * Math.abs(invDy) : Infinity;
+            const tDeltaZ = Math.abs(dz) > EPS ? this.resolucion * Math.abs(invDz) : Infinity;
+
+            let tActual = tCerca;
+            const pasosMax = this.numVoxelsX + this.numVoxelsY + this.numVoxelsZ;
+
+            for (let paso = 0; paso < pasosMax; paso++) {
+                if (this._esVoxelSolido(ix, iy, iz)) {
+                    const hx = ox + dx * tActual, hy = oy + dy * tActual, hz = oz + dz * tActual;
+                    const [wx, wy, wz] = this.transformarInverso(hx, hy, hz);
+                    return { x: wx, y: wy, z: wz };
+                }
+
+                if (tMaxX < tMaxY) {
+                    if (tMaxX < tMaxZ) { tActual = tMaxX; ix += pasoX; tMaxX += tDeltaX; }
+                    else { tActual = tMaxZ; iz += pasoZ; tMaxZ += tDeltaZ; }
+                } else if (tMaxY < tMaxZ) {
+                    tActual = tMaxY; iy += pasoY; tMaxY += tDeltaY;
+                } else {
+                    tActual = tMaxZ; iz += pasoZ; tMaxZ += tDeltaZ;
+                }
+
+                if (ix < 0 || iy < 0 || iz < 0 || ix >= this.numVoxelsX || iy >= this.numVoxelsY || iz >= this.numVoxelsZ || tActual > distMax) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        consultarCapsula(cx0, cy0, cz0, mitadAltura, radio, salida) {
+            if (this.nodos.length === 0) return false;
+            const [cx, cy, cz] = this.transformar(cx0, cy0, cz0);
+            const encontrado = resolverIterativo(
+                cx, cy, cz,
+                (rx, ry, rz, empuje) => this._resolverPenetracionMasProfundaCapsula(rx, ry, rz, mitadAltura, radio, empuje),
+                this._normalesRestriccion,
+                this._temporalPenetracion,
+                this._empujeEspacioGrilla
+            );
+            if (encontrado) {
+                const [wx, wy, wz] = this.transformarDireccion(this._empujeEspacioGrilla.x, this._empujeEspacioGrilla.y, this._empujeEspacioGrilla.z);
+                salida.x = wx; salida.y = wy; salida.z = wz;
+            }
+            return encontrado;
+        }
+
+        _resolverPenetracionMasProfundaCapsula(cx, cy, cz, mitadAltura, radio, salida) {
+            const res = this.resolucion, gMinX = this.minimo[0], gMinY = this.minimo[1], gMinZ = this.minimo[2];
+            const radioCuad = radio * radio;
+            const segAbajoY = cy - mitadAltura, segArribaY = cy + mitadAltura;
+
+            const ixMin = Math.floor((cx - radio - gMinX) / res);
+            const iyMin = Math.floor((segAbajoY - radio - gMinY) / res);
+            const izMin = Math.floor((cz - radio - gMinZ) / res);
+            const ixMax = Math.floor((cx + radio - gMinX) / res);
+            const iyMax = Math.floor((segArribaY + radio - gMinY) / res);
+            const izMax = Math.floor((cz + radio - gMinZ) / res);
+
+            let mejorEmpujeX = 0, mejorEmpujeY = 0, mejorEmpujeZ = 0, mejorPenetracion = EPSILON_PENETRACION, encontrado = false;
+
+            for (let iz = izMin; iz <= izMax; iz++) {
+                for (let iy = iyMin; iy <= iyMax; iy++) {
+                    for (let ix = ixMin; ix <= ixMax; ix++) {
+                        if (!this._esVoxelSolido(ix, iy, iz)) continue;
+
+                        const vMinX = gMinX + ix * res, vMinY = gMinY + iy * res, vMinZ = gMinZ + iz * res;
+                        const vMaxX = vMinX + res, vMaxY = vMinY + res, vMaxZ = vMinZ + res;
+
+                        let segY;
+                        if (segArribaY < vMinY) segY = segArribaY;
+                        else if (segAbajoY > vMaxY) segY = segAbajoY;
+                        else segY = Math.max(segAbajoY, Math.min(segArribaY, (vMinY + vMaxY) * 0.5));
+
+                        const cercaX = Math.max(vMinX, Math.min(cx, vMaxX));
+                        const cercaY = Math.max(vMinY, Math.min(segY, vMaxY));
+                        const cercaZ = Math.max(vMinZ, Math.min(cz, vMaxZ));
+
+                        const dx = cx - cercaX, dy = segY - cercaY, dz = cz - cercaZ;
+                        const distCuad = dx * dx + dy * dy + dz * dz;
+                        if (distCuad >= radioCuad) continue;
+
+                        let px, py, pz, penetracion;
+                        if (distCuad > 1e-12) {
+                            const dist = Math.sqrt(distCuad);
+                            penetracion = radio - dist;
+                            const invDist = 1 / dist;
+                            px = dx * invDist * penetracion;
+                            py = dy * invDist * penetracion;
+                            pz = dz * invDist * penetracion;
+                        } else {
+                            const distNegX = cx - vMinX, distPosX = vMaxX - cx;
+                            const distNegY = segY - vMinY, distPosY = vMaxY - segY;
+                            const distNegZ = cz - vMinZ, distPosZ = vMaxZ - cz;
+                            const escapeX = distNegX < distPosX ? -(distNegX + radio) : distPosX + radio;
+                            const escapeY = distNegY < distPosY ? -(distNegY + radio) : distPosY + radio;
+                            const escapeZ = distNegZ < distPosZ ? -(distNegZ + radio) : distPosZ + radio;
+                            const absX = Math.abs(escapeX), absY = Math.abs(escapeY), absZ = Math.abs(escapeZ);
+                            px = 0; py = 0; pz = 0;
+                            if (absX <= absY && absX <= absZ) { px = escapeX; penetracion = absX; }
+                            else if (absY <= absZ) { py = escapeY; penetracion = absY; }
+                            else { pz = escapeZ; penetracion = absZ; }
+                        }
+
+                        if (penetracion > mejorPenetracion) {
+                            mejorPenetracion = penetracion;
+                            mejorEmpujeX = px; mejorEmpujeY = py; mejorEmpujeZ = pz;
+                            encontrado = true;
+                        }
+                    }
+                }
+            }
+
+            if (encontrado) { salida.x = mejorEmpujeX; salida.y = mejorEmpujeY; salida.z = mejorEmpujeZ; }
+            return encontrado;
+        }
+    }
+
+    const CORRECCION_EJE_VERTICAL = '180 0 0';
+
+    let grillaVoxelActual = null;
+    let limitesPisoActual = null;
+
+    function esquinasALimitesMundo(minimo, maximo, grilla) {
+        let minX = Infinity, minY = Infinity, minZ = Infinity;
+        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+        for (const gx of [minimo[0], maximo[0]]) {
+            for (const gy of [minimo[1], maximo[1]]) {
+                for (const gz of [minimo[2], maximo[2]]) {
+                    const [wx, wy, wz] = grilla.transformarInverso(gx, gy, gz);
+                    minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
+                    minY = Math.min(minY, wy); maxY = Math.max(maxY, wy);
+                    minZ = Math.min(minZ, wz); maxZ = Math.max(maxZ, wz);
+                }
+            }
+        }
+        return { minimo: [minX, minY, minZ], maximo: [maxX, maxY, maxZ] };
+    }
+
+    function calcularLimitesMundo(grilla) {
+        const limites = esquinasALimitesMundo(grilla.minimo, grilla.maximo, grilla);
+        if (!grilla.limitesEscena) return limites;
+        const escena = esquinasALimitesMundo(grilla.limitesEscena.min, grilla.limitesEscena.max, grilla);
+        return {
+            minimo: [Math.max(limites.minimo[0], escena.minimo[0]), Math.max(limites.minimo[1], escena.minimo[1]), Math.max(limites.minimo[2], escena.minimo[2])],
+            maximo: [Math.min(limites.maximo[0], escena.maximo[0]), Math.min(limites.maximo[1], escena.maximo[1]), Math.min(limites.maximo[2], escena.maximo[2])]
+        };
+    }
+
+    let desplazamientoCanvasSuperior = 0;
+
+    const PISO_PRINCIPAL = Object.keys(PISOS).find((k) => PISOS[k].modoNav !== 'orbita') || null;
+    const PISO_EXTERIOR = Object.keys(PISOS).find((k) => PISOS[k].modoNav === 'orbita') || null;
+
+    const RADIO_CHIP_PUERTA = 1.5;
+    const ALTURA_CHIP_PUERTA = 1.2;
+    const chipPuerta = document.getElementById('chipPuerta');
+    const etiquetaChipPuerta = document.getElementById('etiquetaChipPuerta');
+    let portalChipPuerta = null;
+
+    function textoChipPuerta(portal) {
+        const etiqueta = PISOS[portal.destino]?.etiqueta || portal.destino;
+        return `${portal.destino === PISO_PRINCIPAL ? 'Salir' : 'Entrar'} · ${etiqueta}`;
+    }
+
+    function actualizarChipPuerta(camara) {
+        let elegido = null;
+        if (!cambiandoPiso && pisoActual && modoNavActual !== 'orbita') {
+            const p = camara.getPosition();
+            let mejor = RADIO_CHIP_PUERTA;
+            for (const portal of PISOS[pisoActual].portales || []) {
+                const [x, y, z] = portal.posMundo;
+                if (Math.abs(y - p.y) > ALTURA_CHIP_PUERTA) continue;
+                const d = Math.hypot(x - p.x, z - p.z);
+                if (d <= mejor) { mejor = d; elegido = portal; }
+            }
+        }
+        if (elegido === portalChipPuerta) return;
+        portalChipPuerta = elegido;
+        if (elegido) etiquetaChipPuerta.textContent = textoChipPuerta(elegido);
+        chipPuerta.classList.toggle('chip-oculto', !elegido);
+    }
+
+    chipPuerta.addEventListener('click', () => {
+        chipPuerta.blur();
+        if (portalChipPuerta) cargarPiso(portalChipPuerta.destino, portalChipPuerta.llegada);
+    });
+
+    const DISTANCIA_NOTA_VISTA = 0.4;
+    const ANGULO_NOTA_VISTA = 20;
+    const notaVista = document.getElementById('notaVista');
+    let vistaNota = null;
+    let vistaNotaCerrada = null;
+
+    function vistaEnPoseActual(camara) {
+        if (transicionVista || cambiandoPiso) return null;
+        const p = camara.getPosition();
+        for (const v of vistasActuales) {
+            if (!v.titulo && !v.descripcion) continue;
+            if (v.orbita) {
+                if (modoNavActual !== 'orbita') continue;
+                if (Math.abs(anguloDesenvuelto(v.orbita.guiñada, guiñadaOrbita) - v.orbita.guiñada) < 8 &&
+                    Math.abs(cabeceoOrbita - v.orbita.cabeceo) < 6) return v;
+            } else if (v.posicion && modoNavActual !== 'orbita') {
+                const [x, y, z] = v.posicion;
+                if (Math.hypot(x - p.x, z - p.z) < DISTANCIA_NOTA_VISTA && Math.abs(y - p.y) < 0.6 &&
+                    Math.abs(anguloDesenvuelto(v.rotacion[1], guiñada) - v.rotacion[1]) < ANGULO_NOTA_VISTA) return v;
+            }
+        }
+        return null;
+    }
+
+    function actualizarNotaVista(camara) {
+        const v = vistaEnPoseActual(camara);
+        if (v !== vistaNotaCerrada) vistaNotaCerrada = null;
+        const mostrar = v && v !== vistaNotaCerrada ? v : null;
+        if (mostrar === vistaNota) return;
+        vistaNota = mostrar;
+        if (mostrar) {
+            const i = vistasActuales.indexOf(mostrar);
+            notaVista.classList.remove('expandida');
+            document.getElementById('indiceNotaVista').textContent = `Vista ${i + 1} de ${vistasActuales.length}`;
+            document.getElementById('tituloNotaVista').textContent = mostrar.titulo || '';
+            document.getElementById('tituloNotaVista').hidden = !mostrar.titulo;
+            document.getElementById('textoNotaVista').textContent = mostrar.descripcion || '';
+        }
+        notaVista.classList.toggle('nota-oculta', !mostrar);
+    }
+
+    notaVista.addEventListener('click', (e) => {
+        if (e.target.closest('#cerrarNotaVista')) return;
+        notaVista.classList.toggle('expandida');
+    });
+
+    document.getElementById('cerrarNotaVista').addEventListener('click', (e) => {
+        e.currentTarget.blur();
+        vistaNotaCerrada = vistaNota;
+        vistaNota = null;
+        notaVista.classList.add('nota-oculta');
+    });
+
+    const ESPERA_RECORRIDO = 20000;
+    const PAUSA_VISTA_RECORRIDO = 9000;
+    const PANEO_RECORRIDO = 1.1;
+    const DURACION_FUNDIDO_RECORRIDO = 380;
+    let ultimaInteraccion = performance.now();
+    let recorridoActivo = false;
+    let recorridoSiguienteEn = 0;
+    let recorridoEnFundido = false;
+
+    function marcarInteraccion() {
+        ultimaInteraccion = performance.now();
+        recorridoActivo = false;
+    }
+    for (const evento of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+        window.addEventListener(evento, marcarInteraccion, { capture: true, passive: true });
+    }
+    window.addEventListener('pointermove', (e) => { if (e.buttons) marcarInteraccion(); }, { capture: true, passive: true });
+
+    // Fade-cut rather than a glide: views are in different rooms, a glide would pass through walls.
+    function saltarAVistaConFundido(camara, vista) {
+        recorridoEnFundido = true;
+        elementoTransicion.classList.add('activo');
+        setTimeout(() => {
+            if (recorridoActivo && !cambiandoPiso) {
+                camara.setPosition(...vista.posicion);
+                cabeceo = vista.rotacion[0];
+                guiñada = vista.rotacion[1];
+                camara.setEulerAngles(cabeceo, guiñada, 0);
+                reiniciarEstadoCaminar(new pc.Vec3(...vista.posicion));
+                objetivoNav = null;
+                ocultarAnilloNav();
+                indiceVistaActual = vistasActuales.indexOf(vista);
+                actualizarPuntosVista();
+            }
+            elementoTransicion.classList.remove('activo');
+            recorridoEnFundido = false;
+            recorridoSiguienteEn = performance.now() + DURACION_FUNDIDO_RECORRIDO + PAUSA_VISTA_RECORRIDO;
+        }, DURACION_FUNDIDO_RECORRIDO);
+    }
+
+    function actualizarRecorridoAutomatico(camara, dt) {
+        const disponible = !MODO_EDICION && !cambiandoPiso && modoNavActual !== 'orbita' &&
+            vistasActuales.length >= 2 && !transicionVista && !objetivoNav && teclasPresionadas.size === 0;
+        if (!disponible) { recorridoActivo = false; return false; }
+        const ahora = performance.now();
+        if (!recorridoActivo) {
+            if (ahora - ultimaInteraccion < ESPERA_RECORRIDO) return false;
+            recorridoActivo = true;
+            recorridoSiguienteEn = ahora;
+        }
+        if (recorridoEnFundido) return true;
+        if (ahora >= recorridoSiguienteEn) {
+            const siguiente = vistasActuales[(indiceVistaActual + 1) % vistasActuales.length];
+            if (siguiente.posicion) saltarAVistaConFundido(camara, siguiente);
+            else recorridoSiguienteEn = ahora + PAUSA_VISTA_RECORRIDO;
+            return true;
+        }
+        guiñada += PANEO_RECORRIDO * dt;
+        camara.setEulerAngles(cabeceo, guiñada, 0);
+        return true;
+    }
+
+    const botonExterior = document.getElementById('botonExterior');
+    const etiquetaBotonExterior = document.getElementById('etiquetaBotonExterior');
+    let regresoInterior = null;
+
+    function actualizarBotonExterior(piso) {
+        const enExterior = piso.modoNav === 'orbita';
+        botonExterior.hidden = !PISO_EXTERIOR || !PISO_PRINCIPAL;
+        etiquetaBotonExterior.textContent = enExterior ? 'Entrar' : 'Ver exterior';
+        botonExterior.setAttribute('aria-label', etiquetaBotonExterior.textContent);
+    }
+
+    botonExterior.addEventListener('click', () => {
+        botonExterior.blur();
+        if (cambiandoPiso || !pisoActual) return;
+        if (PISOS[pisoActual].modoNav === 'orbita') {
+            if (regresoInterior) cargarPiso(regresoInterior.id, regresoInterior.pose);
+            else cargarPiso(PISO_PRINCIPAL);
+            return;
+        }
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        if (camara) {
+            const p = camara.getPosition();
+            regresoInterior = { id: pisoActual, pose: { posicion: [p.x, p.y, p.z], rotacion: [cabeceo, guiñada, 0] } };
+        }
+        cargarPiso(PISO_EXTERIOR);
+    });
+
+    const URL_CIELO_HDRI = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_48d_partly_cloudy_puresky_2k.hdr';
+    let cuboMapaCielo = null;
+
+    function configurarCielo(app) {
+        const activo = new pc.Asset('cielo-hdri', 'texture', { url: URL_CIELO_HDRI });
+        app.assets.add(activo);
+        activo.ready(() => {
+            const textura = activo.resource;
+            // The HDR loader doesn't set this itself; without it the skybox is sampled wrong.
+            textura.projection = pc.TEXTUREPROJECTION_EQUIRECT;
+            cuboMapaCielo = pc.EnvLighting.generateSkyboxCubemap(textura, 1024);
+            app.scene.skybox = cuboMapaCielo;
+            app.scene.skyboxIntensity = 1;
+        });
+        activo.once('error', (err) => console.error('No se pudo cargar el cielo HDRI:', err));
+        app.assets.load(activo);
+    }
+
+    function numeroPiso(id) {
+        if (id === 'EXT') return Infinity;
+        const m = /N(\d+)/.exec(id);
+        return m ? parseInt(m[1], 10) : NaN;
+    }
+
+    function etiquetaPiso(id) {
+        return id === 'EXT' ? 'EXTERIOR' : id;
+    }
+
+    const panelMinimapa = document.getElementById('panelMinimapa');
+    const minimapaLienzo = document.getElementById('minimapaLienzo');
+    const minimapaImagen = document.getElementById('minimapaImagen');
+    const minimapaMarcadores = document.getElementById('minimapaMarcadores');
+    const minimapaJugador = document.getElementById('minimapaJugador');
+    const minimapaVertical = document.getElementById('minimapaVertical');
+    const botonPisoArriba = document.getElementById('botonPisoArriba');
+    const botonPisoAbajo = document.getElementById('botonPisoAbajo');
+
+    let limitesMinimapaActual = null;
+
+    function mundoAFraccionMinimapa(x, z) {
+        const b = limitesMinimapaActual;
+        return { u: (x - b.minX) / (b.maxX - b.minX), v: (z - b.minZ) / (b.maxZ - b.minZ) };
+    }
+
+    function crearMarcadorMinimapa(claseExtra, iconoSvg, posicionMundo, onClick, titulo) {
+        const el = document.createElement('button');
+        el.className = `marcador-mini ${claseExtra}`;
+        el.innerHTML = iconoSvg;
+        el.title = titulo;
+        const { u, v } = mundoAFraccionMinimapa(posicionMundo[0], posicionMundo[2]);
+        el.style.left = `${u * 100}%`;
+        el.style.top = `${v * 100}%`;
+        el.addEventListener('click', (e) => { e.stopPropagation(); onClick(e); });
+        minimapaMarcadores.appendChild(el);
+    }
+
+    const ICONO_MINIMAPA_VISTA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+
+    function actualizarMinimapa(id) {
+        const piso = PISOS[id];
+        minimapaMarcadores.innerHTML = '';
+        limitesMinimapaActual = null;
+
+        const nivelActual = numeroPiso(id);
+        const portalArriba = piso.portales.find((p) => numeroPiso(p.destino) > nivelActual);
+        const portalAbajo = piso.portales.find((p) => numeroPiso(p.destino) < nivelActual);
+        botonPisoArriba.hidden = !portalArriba;
+        botonPisoAbajo.hidden = !portalAbajo;
+        botonPisoArriba.onclick = portalArriba ? () => cargarPiso(portalArriba.destino, portalArriba.llegada) : null;
+        botonPisoAbajo.onclick = portalAbajo ? () => cargarPiso(portalAbajo.destino, portalAbajo.llegada) : null;
+        if (portalArriba) botonPisoArriba.title = etiquetaPiso(portalArriba.destino);
+        if (portalAbajo) botonPisoAbajo.title = etiquetaPiso(portalAbajo.destino);
+        minimapaVertical.hidden = piso.modoNav === 'orbita' || (!portalArriba && !portalAbajo);
+
+        if (piso.minimapa && limitesPisoActual) {
+            minimapaLienzo.hidden = false;
+            minimapaImagen.src = piso.minimapa.src;
+            const [minX, , minZ] = limitesPisoActual.minimo;
+            const [maxX, , maxZ] = limitesPisoActual.maximo;
+            limitesMinimapaActual = { minX, maxX, minZ, maxZ };
+            minimapaLienzo.style.aspectRatio = `${maxX - minX} / ${maxZ - minZ}`;
+
+            (piso.vistas || []).forEach((vista) => {
+                const posicionVista = posicionMundoVista(piso, vista);
+                if (!posicionVista) return;
+                crearMarcadorMinimapa('marcador-mini-vista', ICONO_MINIMAPA_VISTA, posicionVista, () => saltarAVista(vista), vista.etiqueta);
+            });
+        } else {
+            minimapaLienzo.hidden = true;
+        }
+
+        panelMinimapaTieneContenido = !minimapaLienzo.hidden;
+        actualizarModoDividido();
+    }
+
+    let modoDivididoActivo = true;
+    let panelMinimapaTieneContenido = false;
+    const botonAlternarDivision = document.getElementById('botonAlternarDivision');
+
+    function actualizarModoDividido() {
+        const activo = !!window.__esMovil && panelMinimapaTieneContenido && modoDivididoActivo;
+        botonAlternarDivision.hidden = !window.__esMovil || !panelMinimapaTieneContenido;
+        document.body.classList.toggle('modo-dividido', activo);
+        panelMinimapa.hidden = window.__esMovil ? !activo : !panelMinimapaTieneContenido;
+        botonAlternarDivision.setAttribute('aria-pressed', String(modoDivididoActivo));
+    }
+
+    botonAlternarDivision.addEventListener('click', () => {
+        modoDivididoActivo = !modoDivididoActivo;
+        actualizarModoDividido();
+    });
+
+    function actualizarJugadorMinimapa(camara) {
+        if (!limitesMinimapaActual) return;
+        const pos = camara.getPosition();
+        const { u, v } = mundoAFraccionMinimapa(pos.x, pos.z);
+        const angulo = Math.atan2(camara.forward.x, -camara.forward.z) * (180 / Math.PI);
+        minimapaJugador.style.left = `${Math.min(1, Math.max(0, u)) * 100}%`;
+        minimapaJugador.style.top = `${Math.min(1, Math.max(0, v)) * 100}%`;
+        minimapaJugador.style.transform = `translate(-50%, -50%) rotate(${angulo}deg)`;
+    }
+
+    minimapaLienzo.addEventListener('click', (e) => {
+        if (!limitesMinimapaActual || (modoNavActual !== 'caminar' && modoNavActual !== 'vuelo')) return;
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        if (!camara) return;
+        const rect = minimapaLienzo.getBoundingClientRect();
+        const u = (e.clientX - rect.left) / rect.width;
+        const v = (e.clientY - rect.top) / rect.height;
+        const b = limitesMinimapaActual;
+        const x = b.minX + u * (b.maxX - b.minX);
+        const z = b.minZ + v * (b.maxZ - b.minZ);
+        const y = camara.getPosition().y;
+        camara.setPosition(x, y, z);
+        if (modoNavActual === 'caminar') {
+            objetivoNav = null;
+            ocultarAnilloNav();
+            reiniciarEstadoCaminar(new pc.Vec3(x, y, z));
+        }
+    });
+
+    const MARGEN_LIMITES_VUELO = 1.3;
+
+    function intentarMover(camara, dx, dy, dz) {
+        const pos = camara.getPosition();
+        if (!grillaVoxelActual) {
+            camara.translate(dx, dy, dz);
+            return;
+        }
+        let { x, y, z } = pos;
+        if (!grillaVoxelActual.esSolido(x + dx, y, z, true, MARGEN_LIMITES_VUELO)) x += dx;
+        if (!grillaVoxelActual.esSolido(x, y + dy, z, true, MARGEN_LIMITES_VUELO)) y += dy;
+        if (!grillaVoxelActual.esSolido(x, y, z + dz, true, MARGEN_LIMITES_VUELO)) z += dz;
+        camara.setPosition(x, y, z);
+    }
+
+    let pisoActual = null;
+    let recursoActual = null;
+    let entidadPisoActual = null;
+    let cambiandoPiso = false;
+
+    const raizPiso = document.getElementById('raizPiso');
+    const elementoApp = document.getElementById('aplicacion');
+    const elementoCarga = document.getElementById('cargando');
+    const elementoTransicion = document.getElementById('transicion');
+
+    function establecerBotonActivo(id) {
+        document.querySelectorAll('.boton-piso').forEach(btn => {
+            btn.classList.toggle('activo', btn.dataset.piso === id);
+        });
+        document.getElementById('etiquetaMenuPisos').textContent = id === 'EXT' ? 'EXTERIOR' : id;
+    }
+
+    async function cargarPiso(id, llegada) {
+        if (id === pisoActual) return;
+        const piso = PISOS[id];
+        if (!piso) return;
+
+        cambiandoPiso = true;
+        elementoTransicion.classList.add('activo');
+        await new Promise(r => setTimeout(r, 350));
+
+        elementoCarga.classList.remove('oculto');
+        elementoApp.app.scene.skybox = null;
+
+        if (entidadPisoActual) entidadPisoActual.remove();
+        if (recursoActual) recursoActual.remove();
+        entidadPisoActual = null;
+        recursoActual = null;
+        grillaVoxelActual = null;
+
+        const recurso = document.createElement('pc-asset');
+        recurso.id = `recurso-${id}`;
+        recurso.setAttribute('type', 'gsplat');
+        recurso.setAttribute('src', piso.fuente);
+        elementoApp.appendChild(recurso);
+
+        const recursoCargado = new Promise((resolve) => {
+            recurso.addEventListener('load', resolve, { once: true });
+            recurso.addEventListener('error', (e) => {
+                console.error(`No se pudo cargar ${id}:`, e.message);
+                resolve();
+            }, { once: true });
+        });
+        const voxelCargado = piso.voxel
+            ? GrillaVoxel.cargar(piso.voxel, piso.voxel.offset).catch((err) => {
+                console.error(`Falló la colisión de voxeles para ${id}:`, err);
+                return null;
+            })
+            : Promise.resolve(null);
+
+        const [, grillaVoxel] = await Promise.all([recursoCargado, voxelCargado]);
+        grillaVoxelActual = grillaVoxel;
+        limitesPisoActual = grillaVoxel ? calcularLimitesMundo(grillaVoxel) : null;
+
+        const entidadPiso = document.createElement('pc-entity');
+        entidadPiso.setAttribute('name', `piso-${id}`);
+        entidadPiso.setAttribute('rotation', CORRECCION_EJE_VERTICAL);
+
+        const gsplat = document.createElement('pc-gsplat');
+        gsplat.setAttribute('asset', recurso.id);
+        if (window.__esMovil) {
+            gsplat.setAttribute('lod-base-distance', '3');
+            gsplat.setAttribute('lod-multiplier', '2.2');
+        }
+        entidadPiso.appendChild(gsplat);
+
+        raizPiso.appendChild(entidadPiso);
+
+        actualizarSelectorVistas(piso);
+        calcularBloqueoPuertaCaminar(piso);
+
+        recursoActual = recurso;
+        entidadPisoActual = entidadPiso;
+        pisoActual = id;
+        cambiandoPiso = false;
+
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        modoNavActual = piso.modoNav || 'caminar';
+        transicionVista = null;
+        const panelAyudaNav = document.getElementById('panelAyudaNav');
+        if (modoNavActual === 'orbita') {
+            focoOrbita = { x: piso.focoOrbita[0], y: piso.focoOrbita[1], z: piso.focoOrbita[2] };
+            distanciaOrbita = obtenerDistanciaOrbitaMax();
+            holguraOrbita = piso.holguraOrbita ?? 3;
+            guiñadaOrbita = piso.inicioOrbita?.guiñada ?? 0;
+            cabeceoOrbita = piso.inicioOrbita?.cabeceo ?? 15;
+            if (camara) actualizarCamaraOrbita(camara);
+            autoRotandoExt = true;
+            panelAyudaNav.textContent = window.__esMovil ? 'Arrastra para girar' : 'Arrastra para girar · Rueda para acercar';
+        } else {
+            const pose = llegada || piso.inicioCamara;
+            if (camara) {
+                camara.setPosition(...pose.posicion);
+                camara.setEulerAngles(...pose.rotacion);
+                cabeceo = pose.rotacion[0];
+                guiñada = pose.rotacion[1];
+            }
+            reiniciarEstadoCaminar(new pc.Vec3(...pose.posicion));
+            objetivoNav = null;
+            ocultarAnilloNav();
+            panelAyudaNav.textContent = window.__esMovil
+                ? 'Arrastra para mirar · Toca el piso para caminar'
+                : modoNavActual === 'caminar'
+                    ? 'Arrastra para mirar · WASD para moverte · Espacio para saltar · F para volar'
+                    : 'Arrastra para mirar · WASD para moverte · Rueda para acelerar · F para caminar';
+        }
+
+        establecerBotonActivo(id);
+        actualizarBotonExterior(piso);
+        actualizarMinimapa(id);
+        actualizarSelectorModoNav();
+        modoLibreOrbitaEdicion = false;
+        if (MODO_EDICION) { actualizarUIPortal(); actualizarEstadoSpawn(); actualizarUIFoco(); }
+        if (cuboMapaCielo) elementoApp.app.scene.skybox = cuboMapaCielo;
+        elementoCarga.classList.add('oculto');
+        elementoTransicion.classList.remove('activo');
+        mostrarAyudaInicialMovil();
+
+        tiempoDesbloqueoEvaluacionBudget = performance.now() + GRACIA_TRAS_CARGA_PISO;
+        acumuladorDtBudget = 0;
+        acumuladorFramesBudget = 0;
+    }
+
+    const botonMenuPisos = document.getElementById('botonMenuPisos');
+    const menuPisos = document.getElementById('menuPisos');
+
+    function establecerMenuPisosAbierto(abierto) {
+        menuPisos.hidden = !abierto;
+        botonMenuPisos.setAttribute('aria-expanded', String(abierto));
+    }
+
+    botonMenuPisos.addEventListener('click', (e) => {
+        e.stopPropagation();
+        establecerMenuPisosAbierto(menuPisos.hidden);
+    });
+    document.addEventListener('click', (e) => {
+        if (!menuPisos.hidden && !menuPisos.contains(e.target) && e.target !== botonMenuPisos) {
+            establecerMenuPisosAbierto(false);
+        }
+    });
+
+    document.querySelectorAll('.boton-piso').forEach(btn => {
+        btn.addEventListener('click', () => {
+            cargarPiso(btn.dataset.piso);
+            establecerMenuPisosAbierto(false);
+        });
+    });
+
+    const botonAyudaNav = document.getElementById('botonAyudaNav');
+    const panelAyudaNav = document.getElementById('panelAyudaNav');
+
+    function establecerAyudaNavAbierta(abierta) {
+        panelAyudaNav.hidden = !abierta;
+        botonAyudaNav.setAttribute('aria-expanded', String(abierta));
+    }
+
+    botonAyudaNav.addEventListener('click', (e) => {
+        e.stopPropagation();
+        establecerAyudaNavAbierta(panelAyudaNav.hidden);
+    });
+    document.addEventListener('click', (e) => {
+        if (!panelAyudaNav.hidden && !panelAyudaNav.contains(e.target) && e.target !== botonAyudaNav) {
+            establecerAyudaNavAbierta(false);
+        }
+    });
+
+    let ayudaInicialMostrada = false;
+    if (window.__esMovil) botonAyudaNav.hidden = true;
+    function mostrarAyudaInicialMovil() {
+        if (!window.__esMovil || ayudaInicialMostrada) return;
+        ayudaInicialMostrada = true;
+        establecerAyudaNavAbierta(true);
+        setTimeout(() => establecerAyudaNavAbierta(false), 4500);
+    }
+
+    const selectorModoNav = document.getElementById('selectorModoNav');
+    const botonModoCaminar = document.getElementById('botonModoCaminar');
+    const botonModoVuelo = document.getElementById('botonModoVuelo');
+    if (window.__esMovil) botonModoVuelo.hidden = true;
+
+    function actualizarSelectorModoNav() {
+        const aplica = !window.__esMovil && (modoNavActual === 'caminar' || modoNavActual === 'vuelo');
+        selectorModoNav.hidden = !aplica;
+        botonModoCaminar.classList.toggle('activo', modoNavActual === 'caminar');
+        botonModoVuelo.classList.toggle('activo', modoNavActual === 'vuelo');
+    }
+
+    function establecerModoCaminarVuelo(modo) {
+        if (window.__esMovil && modo === 'vuelo') return;
+        if (modo === modoNavActual || (modoNavActual !== 'caminar' && modoNavActual !== 'vuelo')) return;
+        transicionVista = null;
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        modoNavActual = modo;
+        if (modo === 'caminar') {
+            if (camara) reiniciarEstadoCaminar(camara.getPosition());
+            panelAyudaNav.textContent = 'Arrastra para mirar · WASD para moverte · Espacio para saltar · F para volar';
+        } else {
+            objetivoNav = null;
+            ocultarAnilloNav();
+            panelAyudaNav.textContent = 'Arrastra para mirar · WASD para moverte · Rueda para acelerar · F para caminar';
+        }
+        actualizarSelectorModoNav();
+    }
+
+    botonModoCaminar.addEventListener('click', () => establecerModoCaminarVuelo('caminar'));
+    botonModoVuelo.addEventListener('click', () => establecerModoCaminarVuelo('vuelo'));
+
+    const elementoSelectorVistas = document.getElementById('selectorVistas');
+    const botonVistaAnterior = document.getElementById('botonVistaAnterior');
+    const botonVistaSiguiente = document.getElementById('botonVistaSiguiente');
+    const elementoPuntosVista = document.getElementById('puntosVista');
+    let vistasActuales = [];
+    let indiceVistaActual = 0;
+
+    function actualizarPuntosVista() {
+        Array.from(elementoPuntosVista.children).forEach((el, i) => el.classList.toggle('activo', i === indiceVistaActual));
+    }
+
+    function actualizarSelectorVistas(piso) {
+        vistasActuales = piso.vistas || [];
+        indiceVistaActual = 0;
+        elementoSelectorVistas.hidden = false;
+        elementoSelectorVistas.classList.toggle('selector-vistas-oculto', vistasActuales.length < 2);
+        elementoPuntosVista.innerHTML = '';
+        vistasActuales.forEach(() => {
+            const punto = document.createElement('span');
+            punto.className = 'punto-vista';
+            elementoPuntosVista.appendChild(punto);
+        });
+        actualizarPuntosVista();
+    }
+
+    function irVistaRelativa(delta) {
+        if (vistasActuales.length === 0) return;
+        indiceVistaActual = (indiceVistaActual + delta + vistasActuales.length) % vistasActuales.length;
+        actualizarPuntosVista();
+        saltarAVista(vistasActuales[indiceVistaActual]);
+    }
+
+    botonVistaAnterior.addEventListener('click', () => irVistaRelativa(-1));
+    botonVistaSiguiente.addEventListener('click', () => irVistaRelativa(1));
+
+    const FRACCION_DISTANCIA_MARCADOR_ORBITA = 0.6;
+
+    function posicionVistaOrbita(piso, vista) {
+        const foco = piso.focoOrbita;
+        if (!foco || !vista.orbita) return null;
+        const radGuiñada = (vista.orbita.guiñada * Math.PI) / 180;
+        const radCabeceo = (vista.orbita.cabeceo * Math.PI) / 180;
+        const dirX = Math.cos(radCabeceo) * Math.sin(radGuiñada);
+        const dirY = Math.sin(radCabeceo);
+        const dirZ = Math.cos(radCabeceo) * Math.cos(radGuiñada);
+        const distanciaMax = vista.orbita.distancia;
+        const holgura = piso.holguraOrbita ?? 3;
+        const PASO = 0.5;
+        let distancia = Math.min(distanciaMax, distanciaMax * FRACCION_DISTANCIA_MARCADOR_ORBITA);
+        let x = foco[0] + dirX * distancia, y = foco[1] + dirY * distancia, z = foco[2] + dirZ * distancia;
+        while (distancia < distanciaMax && estaDemasiadoCerca(x, y, z, holgura)) {
+            distancia += PASO;
+            x = foco[0] + dirX * distancia;
+            y = foco[1] + dirY * distancia;
+            z = foco[2] + dirZ * distancia;
+        }
+        return [x, y, z];
+    }
+
+    function posicionMundoVista(piso, vista) {
+        return vista.posicion || posicionVistaOrbita(piso, vista) || null;
+    }
+
+    const DURACION_TRANSICION_VISTA = 700;
+    let transicionVista = null;
+
+    function facilitarTransicion(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function anguloDesenvuelto(desde, hasta) {
+        return desde + (((hasta - desde + 180) % 360 + 360) % 360 - 180);
+    }
+
+    function saltarAVista(vista) {
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        if (!camara) return;
+        autoRotandoExt = false;
+        const idx = vistasActuales.indexOf(vista);
+        if (idx !== -1) { indiceVistaActual = idx; actualizarPuntosVista(); }
+        if (vista.orbita) {
+            transicionVista = {
+                tipo: 'orbita',
+                inicio: performance.now(),
+                desde: { guiñada: guiñadaOrbita, cabeceo: cabeceoOrbita, distancia: distanciaOrbita },
+                hasta: {
+                    guiñada: anguloDesenvuelto(guiñadaOrbita, vista.orbita.guiñada),
+                    cabeceo: vista.orbita.cabeceo,
+                    distancia: vista.orbita.distancia
+                }
+            };
+        } else {
+            const pos = camara.getPosition();
+            transicionVista = {
+                tipo: 'libre',
+                inicio: performance.now(),
+                desde: { pos: [pos.x, pos.y, pos.z], cabeceo, guiñada },
+                hasta: { pos: vista.posicion, cabeceo: vista.rotacion[0], guiñada: anguloDesenvuelto(guiñada, vista.rotacion[1]) }
+            };
+        }
+    }
+
+    const MODO_EDICION = new URLSearchParams(location.search).get('edit') === '1';
+    document.body.classList.toggle('modo-edicion', MODO_EDICION);
+    const panelEditor = document.getElementById('panelEditor');
+    const lecturaEditor = document.getElementById('lecturaEditor');
+    const listaVistas = document.getElementById('listaVistas');
+    const listaPortales = document.getElementById('listaPortales');
+    const botonAccionPortal = document.getElementById('botonAccionPortal');
+    const botonCancelarPortal = document.getElementById('botonCancelarPortal');
+    const estadoPortal = document.getElementById('estadoPortal');
+    const botonSpawnAqui = document.getElementById('botonSpawnAqui');
+    const estadoSpawn = document.getElementById('estadoSpawn');
+    const botonLibreOrbita = document.getElementById('botonLibreOrbita');
+    const botonFocoAqui = document.getElementById('botonFocoAqui');
+    const estadoFoco = document.getElementById('estadoFoco');
+
+    let portalPendiente = null;
+
+    function poseActual() {
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        if (!camara) return null;
+        const p = camara.getPosition();
+        return { posicion: [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)], rotacion: [+cabeceo.toFixed(1), +guiñada.toFixed(1), 0] };
+    }
+
+    function actualizarEstadoSpawn() {
+        const esOrbita = modoNavActual === 'orbita';
+        botonSpawnAqui.hidden = esOrbita;
+        estadoSpawn.hidden = esOrbita;
+        if (esOrbita) return;
+        const ic = PISOS[pisoActual].inicioCamara;
+        estadoSpawn.textContent = ic
+            ? `Inicio actual: [${ic.posicion.join(', ')}]`
+            : 'Sin definir - entra desde otro piso o define uno aquí.';
+    }
+
+    let modoLibreOrbitaEdicion = false;
+
+    function calcularOrbitaDesdePosicion(pos, foco) {
+        const dx = pos.x - foco[0], dy = pos.y - foco[1], dz = pos.z - foco[2];
+        const distancia = Math.hypot(dx, dy, dz) || 0.01;
+        const cabeceoCalc = Math.asin(Math.max(-1, Math.min(1, dy / distancia))) * 180 / Math.PI;
+        const guiñadaCalc = Math.atan2(dx, dz) * 180 / Math.PI;
+        return { guiñada: guiñadaCalc, cabeceo: cabeceoCalc, distancia };
+    }
+
+    function actualizarUIFoco() {
+        const esOrbita = modoNavActual === 'orbita';
+        botonLibreOrbita.hidden = !esOrbita;
+        botonFocoAqui.hidden = !esOrbita;
+        estadoFoco.hidden = !esOrbita;
+        if (!esOrbita) return;
+        const foco = PISOS[pisoActual].focoOrbita;
+        estadoFoco.textContent = foco
+            ? `Foco actual: [${foco.map((n) => (+n).toFixed(3)).join(', ')}]`
+            : 'Sin definir';
+    }
+
+    botonLibreOrbita.addEventListener('click', () => {
+        if (modoNavActual !== 'orbita' || cambiandoPiso) return;
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        modoLibreOrbitaEdicion = !modoLibreOrbitaEdicion;
+        if (modoLibreOrbitaEdicion) {
+            autoRotandoExt = false;
+            if (camara) {
+                const angulos = camara.getEulerAngles();
+                cabeceo = angulos.x;
+                guiñada = angulos.y;
+            }
+        } else if (camara) {
+            const foco = PISOS[pisoActual].focoOrbita || [0, 0, 0];
+            const { guiñada: g, cabeceo: c, distancia: d } = calcularOrbitaDesdePosicion(camara.getPosition(), foco);
+            guiñadaOrbita = g;
+            cabeceoOrbita = c;
+            distanciaOrbita = d;
+            actualizarCamaraOrbita(camara);
+        }
+        botonLibreOrbita.textContent = `Movimiento libre: ${modoLibreOrbitaEdicion ? 'ON' : 'OFF'}`;
+        botonLibreOrbita.setAttribute('aria-pressed', String(modoLibreOrbitaEdicion));
+    });
+
+    botonFocoAqui.addEventListener('click', () => {
+        if (modoNavActual !== 'orbita' || cambiandoPiso) return;
+        const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+        if (!camara) return;
+        const p = camara.getPosition();
+        PISOS[pisoActual].focoOrbita = [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)];
+        actualizarUIFoco();
+    });
+
+    function actualizarUIPortal() {
+        if (!portalPendiente) {
+            botonAccionPortal.textContent = 'Iniciar portal aquí';
+            botonAccionPortal.disabled = modoNavActual === 'orbita';
+            botonCancelarPortal.hidden = true;
+            estadoPortal.textContent = '';
+        } else if (pisoActual === portalPendiente.pisoOrigen) {
+            botonAccionPortal.textContent = 'Terminar portal aquí';
+            botonAccionPortal.disabled = true;
+            botonCancelarPortal.hidden = false;
+            estadoPortal.textContent = `Portal iniciado aquí. Ve a otro piso (selector de pisos, arriba a la derecha) para terminarlo allí.`;
+        } else {
+            botonAccionPortal.textContent = 'Terminar portal aquí';
+            botonAccionPortal.disabled = false;
+            botonCancelarPortal.hidden = false;
+            estadoPortal.textContent = `Portal pendiente desde ${portalPendiente.pisoOrigen}. Camina hasta el punto de llegada y luego haz clic en "Terminar portal aquí".`;
+        }
+    }
+
+    function renderizarListaVistas() {
+        listaVistas.innerHTML = '';
+        Object.entries(PISOS).forEach(([idPiso, piso]) => {
+            (piso.vistas || []).forEach((vista, i) => {
+                const fila = document.createElement('div');
+                fila.className = 'item-editor';
+                fila.innerHTML = '<span></span>';
+                fila.querySelector('span').textContent = `${idPiso} · Vista ${i + 1}${vista.titulo ? ` · ${vista.titulo}` : ''}`;
+                const anotar = document.createElement('button');
+                anotar.textContent = '✎';
+                anotar.title = 'Título y descripción';
+                anotar.addEventListener('click', () => {
+                    const titulo = prompt('Título de la vista (vacío = sin título):', vista.titulo || '');
+                    if (titulo === null) return;
+                    const descripcion = prompt('Descripción (vacío = sin nota):', vista.descripcion || '');
+                    if (descripcion === null) return;
+                    if (titulo.trim()) vista.titulo = titulo.trim(); else delete vista.titulo;
+                    if (descripcion.trim()) vista.descripcion = descripcion.trim(); else delete vista.descripcion;
+                    vistaNota = null;
+                    renderizarListaVistas();
+                });
+                fila.appendChild(anotar);
+                const borrar = document.createElement('button');
+                borrar.textContent = '×';
+                borrar.addEventListener('click', () => {
+                    const arr = PISOS[idPiso].vistas;
+                    arr.splice(arr.indexOf(vista), 1);
+                    renderizarListaVistas();
+                    if (idPiso === pisoActual) { actualizarSelectorVistas(PISOS[idPiso]); }
+                });
+                fila.appendChild(borrar);
+                listaVistas.appendChild(fila);
+            });
+        });
+    }
+
+    function renderizarListaPortales() {
+        listaPortales.innerHTML = '';
+        Object.entries(PISOS).forEach(([idPiso, piso]) => {
+            (piso.portales || []).forEach((portal) => {
+                const fila = document.createElement('div');
+                fila.className = 'item-editor';
+                fila.innerHTML = `<span>${idPiso} → ${portal.destino}</span>`;
+                const borrar = document.createElement('button');
+                borrar.textContent = '×';
+                borrar.addEventListener('click', () => {
+                    const arr = PISOS[idPiso].portales;
+                    arr.splice(arr.indexOf(portal), 1);
+                    renderizarListaPortales();
+                });
+                fila.appendChild(borrar);
+                listaPortales.appendChild(fila);
+            });
+        });
+    }
+
+    if (MODO_EDICION) {
+        panelEditor.hidden = false;
+        renderizarListaVistas();
+        renderizarListaPortales();
+
+        botonSpawnAqui.addEventListener('click', () => {
+            if (modoNavActual === 'orbita' || cambiandoPiso) return;
+            PISOS[pisoActual].inicioCamara = poseActual();
+            actualizarEstadoSpawn();
+        });
+
+        document.getElementById('botonAgregarVista').addEventListener('click', () => {
+            if (cambiandoPiso) return;
+            if (!PISOS[pisoActual].vistas) PISOS[pisoActual].vistas = [];
+            const etiqueta = `v${PISOS[pisoActual].vistas.length + 1}`;
+            const vista = modoNavActual === 'orbita'
+                ? { etiqueta, orbita: { guiñada: +guiñadaOrbita.toFixed(1), cabeceo: +cabeceoOrbita.toFixed(1), distancia: +distanciaOrbita.toFixed(2) } }
+                : { etiqueta, ...poseActual() };
+            PISOS[pisoActual].vistas.push(vista);
+            actualizarSelectorVistas(PISOS[pisoActual]);
+            renderizarListaVistas();
+        });
+
+        botonAccionPortal.addEventListener('click', () => {
+            if (cambiandoPiso) return;
+            if (!portalPendiente) {
+                if (modoNavActual === 'orbita') { alert('Los portales solo están disponibles en pisos caminables (no orbitales).'); return; }
+                portalPendiente = { pisoOrigen: pisoActual, posMundo: poseActual().posicion };
+            } else if (pisoActual !== portalPendiente.pisoOrigen) {
+                const pose = poseActual();
+                const portal = { destino: pisoActual, posMundo: portalPendiente.posMundo, llegada: { posicion: pose.posicion, rotacion: pose.rotacion } };
+                if (!PISOS[portalPendiente.pisoOrigen].portales) PISOS[portalPendiente.pisoOrigen].portales = [];
+                PISOS[portalPendiente.pisoOrigen].portales.push(portal);
+                portalPendiente = null;
+                renderizarListaPortales();
+            }
+            actualizarUIPortal();
+        });
+
+        botonCancelarPortal.addEventListener('click', () => {
+            portalPendiente = null;
+            actualizarUIPortal();
+        });
+
+        document.getElementById('botonExportar').addEventListener('click', () => {
+            const fmtPose = (p) => `{ posicion: [${p.posicion.join(', ')}], rotacion: [${p.rotacion.join(', ')}] }`;
+            const fmtNota = (v) => `${v.titulo ? `, titulo: ${JSON.stringify(v.titulo)}` : ''}${v.descripcion ? `, descripcion: ${JSON.stringify(v.descripcion)}` : ''}`;
+            const fmtVista = (v) => v.orbita
+                ? `    { etiqueta: '${v.etiqueta}', orbita: { guiñada: ${v.orbita.guiñada}, cabeceo: ${v.orbita.cabeceo}, distancia: ${v.orbita.distancia} }${fmtNota(v)} }`
+                : `    { etiqueta: '${v.etiqueta}', posicion: [${v.posicion.join(', ')}], rotacion: [${v.rotacion.join(', ')}]${fmtNota(v)} }`;
+            let texto = '';
+            Object.entries(PISOS).forEach(([id, piso]) => {
+                const vistas = piso.vistas || [];
+                const portales = piso.portales || [];
+                const inicioCamara = piso.inicioCamara;
+                const focoOrbita = piso.modoNav === 'orbita' ? piso.focoOrbita : null;
+                if (!vistas.length && !portales.length && !inicioCamara && !focoOrbita) return;
+                texto += `// ${id}\n`;
+                if (inicioCamara) {
+                    texto += `inicioCamara: ${fmtPose(inicioCamara)},\n`;
+                }
+                if (focoOrbita) {
+                    texto += `focoOrbita: [${focoOrbita.join(', ')}],\n`;
+                }
+                if (vistas.length) {
+                    texto += `vistas: [\n${vistas.map(fmtVista).join(',\n')}\n],\n`;
+                }
+                if (portales.length) {
+                    texto += `portales: [\n${portales.map((p) => `    { destino: '${p.destino}', posMundo: [${p.posMundo.join(', ')}], llegada: ${fmtPose(p.llegada)} }`).join(',\n')}\n],\n`;
+                }
+                texto += '\n';
+            });
+            document.getElementById('textoExportar').value = texto || '(aún no hay vistas ni portales definidos)';
+            document.getElementById('modalExportar').hidden = false;
+        });
+
+        document.getElementById('botonCopiarExportar').addEventListener('click', () => {
+            navigator.clipboard.writeText(document.getElementById('textoExportar').value);
+        });
+        document.getElementById('botonCerrarExportar').addEventListener('click', () => {
+            document.getElementById('modalExportar').hidden = true;
+        });
+    }
+
+    let cabeceo = 0;
+    let guiñada = 0;
+    let velocidadMovimiento = 2;
+    const VELOCIDAD_MOVIMIENTO_MIN = 0.3;
+    const VELOCIDAD_MOVIMIENTO_MAX = 15;
+    const SENSIBILIDAD_VISTA = 0.15;
+    const teclasPresionadas = new Set();
+    let arrastrando = false;
+
+    let modoNavActual = 'vuelo';
+    let autoRotandoExt = false;
+    const VELOCIDAD_AUTOROTACION_EXT = 2.5;
+    let focoOrbita = { x: 0, y: 0, z: 0 };
+    let guiñadaOrbita = 0;
+    let cabeceoOrbita = 15;
+    let distanciaOrbita = 20;
+    let holguraOrbita = 3;
+    const SENSIBILIDAD_VISTA_ORBITA = 0.2;
+    const DISTANCIA_ORBITA_MIN = 2;
+    const DISTANCIA_ORBITA_MAX = 150;
+    const FACTOR_DISTANCIA_ORBITA_MAX = 2;
+    const DISTANCIA_ORBITA_MAX_RESPALDO = 60;
+
+    function obtenerDistanciaOrbitaMax() {
+        const piso = PISOS[pisoActual];
+        if (piso && typeof piso.distanciaOrbita === 'number') {
+            return Math.min(DISTANCIA_ORBITA_MAX, piso.distanciaOrbita);
+        }
+        if (!limitesPisoActual) return DISTANCIA_ORBITA_MAX_RESPALDO;
+        const [minX, minY, minZ] = limitesPisoActual.minimo;
+        const [maxX, maxY, maxZ] = limitesPisoActual.maximo;
+        const mediaDiagonal = 0.5 * Math.hypot(maxX - minX, maxY - minY, maxZ - minZ);
+        return Math.min(DISTANCIA_ORBITA_MAX, mediaDiagonal * FACTOR_DISTANCIA_ORBITA_MAX);
+    }
+
+    const DIRECCIONES_HOLGURA = [
+        [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+        [1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1],
+        [-1, 1, 1], [-1, 1, -1], [-1, -1, 1], [-1, -1, -1]
+    ].map(([x, y, z]) => {
+        const len = Math.sqrt(x * x + y * y + z * z);
+        return [x / len, y / len, z / len];
+    });
+
+    function estaDemasiadoCerca(x, y, z, holgura) {
+        if (!grillaVoxelActual) return false;
+        if (grillaVoxelActual.esSolido(x, y, z, false)) return true;
+        for (const [dx, dy, dz] of DIRECCIONES_HOLGURA) {
+            if (grillaVoxelActual.esSolido(x + dx * holgura, y + dy * holgura, z + dz * holgura, false)) return true;
+        }
+        return false;
+    }
+
+    function actualizarCamaraOrbita(camara) {
+        const radGuiñada = (guiñadaOrbita * Math.PI) / 180;
+        const radCabeceo = (cabeceoOrbita * Math.PI) / 180;
+        const posicionEn = (distancia) => ({
+            x: focoOrbita.x + distancia * Math.cos(radCabeceo) * Math.sin(radGuiñada),
+            y: focoOrbita.y + distancia * Math.sin(radCabeceo),
+            z: focoOrbita.z + distancia * Math.cos(radCabeceo) * Math.cos(radGuiñada)
+        });
+
+        let p = posicionEn(distanciaOrbita);
+        if (estaDemasiadoCerca(p.x, p.y, p.z, holguraOrbita)) {
+            const PASO = 0.1;
+            let distancia = distanciaOrbita;
+            for (let i = 0; i < 400 && distancia < DISTANCIA_ORBITA_MAX; i++) {
+                distancia += PASO;
+                p = posicionEn(distancia);
+                if (!estaDemasiadoCerca(p.x, p.y, p.z, holguraOrbita)) break;
+            }
+            distanciaOrbita = distancia;
+        }
+        camara.setPosition(p.x, p.y, p.z);
+        camara.lookAt(focoOrbita.x, focoOrbita.y, focoOrbita.z);
+    }
+
+    const ALTURA_CAPSULA_CAMINAR = 0.5;
+    const RADIO_CAPSULA_CAMINAR = 0.1;
+    const ALTURA_OJOS_CAMINAR = 1.2;
+    const GRAVEDAD_CAMINAR = 9.8;
+    const VELOCIDAD_SALTO_CAMINAR = 4;
+    const VELOCIDAD_SUELO_CAMINAR = 3.5;
+    const VELOCIDAD_AIRE_CAMINAR = 1;
+    const AMORTIGUACION_SUELO_CAMINAR = 0.99;
+    const AMORTIGUACION_AIRE_CAMINAR = 0.998;
+    const ALTURA_FLOTACION_CAMINAR = 0.05;
+    const RIGIDEZ_RESORTE_CAMINAR = 800;
+    const AMORTIGUACION_RESORTE_CAMINAR = 57;
+    const ALCANCE_SONDEO_SUELO_CAMINAR = 1.0;
+    const DT_FIJO_CAMINAR = 1 / 60;
+    const SUBPASOS_MAX_CAMINAR = 10;
+    const MARGEN_LIMITES_CAMINAR = -0.75;
+    const MARGEN_RECUPERACION_CAIDA = 4;
+
+    const posicionCaminar = new pc.Vec3();
+    const posicionAnteriorCaminar = new pc.Vec3();
+    const velocidadCaminar = new pc.Vec3();
+    let caminarEnSuelo = false;
+    let caminarSaltando = false;
+    let caminarSaltoPresionado = false;
+    let acumuladorCaminar = 0;
+
+    const cuatGuiñadaCaminar = new pc.Quat();
+    const adelanteCaminar = new pc.Vec3();
+    const derechaCaminar = new pc.Vec3();
+    const deltaPasoCaminar = new pc.Vec3();
+    const empujeCaminar = { x: 0, y: 0, z: 0 };
+    const posRenderCaminar = new pc.Vec3();
+
+    function reiniciarEstadoCaminar(pos) {
+        posicionCaminar.copy(pos);
+        posicionAnteriorCaminar.copy(pos);
+        velocidadCaminar.set(0, 0, 0);
+        caminarEnSuelo = false;
+        caminarSaltando = false;
+        caminarSaltoPresionado = false;
+        acumuladorCaminar = 0;
+    }
+
+    function establecerBaseGuiñada(guiñadaGrados) {
+        cuatGuiñadaCaminar.setFromEulerAngles(0, guiñadaGrados, 0);
+        cuatGuiñadaCaminar.transformVector(pc.Vec3.FORWARD, adelanteCaminar);
+        cuatGuiñadaCaminar.transformVector(pc.Vec3.RIGHT, derechaCaminar);
+    }
+
+    function sondearSueloCaminar() {
+        if (!grillaVoxelActual) return null;
+        const oy = posicionCaminar.y - ALTURA_OJOS_CAMINAR;
+        const r = RADIO_CAPSULA_CAMINAR;
+        let totalY = 0, cuentaImpactos = 0;
+        for (let i = 0; i < 5; i++) {
+            let ox = posicionCaminar.x, oz = posicionCaminar.z;
+            if (i === 1) ox -= r;
+            else if (i === 2) ox += r;
+            else if (i === 3) oz += r;
+            else if (i === 4) oz -= r;
+            const impacto = grillaVoxelActual.consultarRayo(ox, oy, oz, 0, -1, 0, ALCANCE_SONDEO_SUELO_CAMINAR);
+            if (impacto) { totalY += impacto.y; cuentaImpactos++; }
+        }
+        return cuentaImpactos > 0 ? totalY / cuentaImpactos : null;
+    }
+
+    const ALTURA_ESCALON_AUTO_CAMINAR = 0.3;
+
+    function intentarAutoEscalonCaminar() {
+        if (!grillaVoxelActual || caminarSaltando) return;
+        const feetY = posicionCaminar.y - ALTURA_OJOS_CAMINAR;
+        const oy = feetY + ALTURA_ESCALON_AUTO_CAMINAR + 0.05;
+        // Also probe just ahead of the capsule: its radius keeps the center short of a riser.
+        const vh = Math.hypot(velocidadCaminar.x, velocidadCaminar.z);
+        const adelanto = vh > 0.05 ? (RADIO_CAPSULA_CAMINAR + 0.05) / vh : 0;
+        let impacto = grillaVoxelActual.consultarRayo(posicionCaminar.x, oy, posicionCaminar.z, 0, -1, 0, ALTURA_ESCALON_AUTO_CAMINAR + 0.1);
+        if (adelanto > 0) {
+            const delante = grillaVoxelActual.consultarRayo(
+                posicionCaminar.x + velocidadCaminar.x * adelanto, oy, posicionCaminar.z + velocidadCaminar.z * adelanto,
+                0, -1, 0, ALTURA_ESCALON_AUTO_CAMINAR + 0.1);
+            if (delante && (!impacto || delante.y > impacto.y)) impacto = delante;
+        }
+        if (!impacto) return;
+        const subida = impacto.y - feetY;
+        if (subida <= 0.02 || subida > ALTURA_ESCALON_AUTO_CAMINAR) return;
+        posicionCaminar.y = impacto.y + ALTURA_OJOS_CAMINAR;
+        if (velocidadCaminar.y < 0) velocidadCaminar.y = 0;
+        caminarEnSuelo = true;
+    }
+
+    const DISTANCIA_BLOQUEO_PUERTA_CAMINAR = 0.3;
+    let bloqueosPuertaCaminar = [];
+    const MEDIO_ANCHO_BLOQUEO_PUERTA_LOCAL = 1.0;
+    const MEDIA_ALTURA_BLOQUEO_PUERTA_LOCAL = 1.5;
+    const PROFUNDIDAD_BLOQUEO_PUERTA_LOCAL = 0.5;
+
+    function construirBloqueoPuertaDesdePose(pose) {
+        const esMarcadorPorDefecto = pose && pose.posicion[0] === 0 && pose.posicion[1] === 1.6 && pose.posicion[2] === 0 &&
+            pose.rotacion[0] === 0 && pose.rotacion[1] === 0;
+        if (!pose || esMarcadorPorDefecto) return null;
+        const [px, , pz] = pose.posicion;
+        const cuat = new pc.Quat();
+        const adelante = new pc.Vec3();
+        cuat.setFromEulerAngles(0, pose.rotacion[1], 0);
+        cuat.transformVector(pc.Vec3.FORWARD, adelante);
+        return {
+            x: px - adelante.x * DISTANCIA_BLOQUEO_PUERTA_CAMINAR,
+            z: pz - adelante.z * DISTANCIA_BLOQUEO_PUERTA_CAMINAR,
+            nx: adelante.x,
+            nz: adelante.z,
+        };
+    }
+
+    function calcularBloqueoPuertaCaminar(piso) {
+        if (Array.isArray(piso.bloqueosPuerta)) {
+            bloqueosPuertaCaminar = piso.bloqueosPuerta.map((pose) => {
+                const b = construirBloqueoPuertaDesdePose(pose);
+                if (b) { b.local = true; b.y = pose.posicion[1]; }
+                return b;
+            }).filter(Boolean);
+            return;
+        }
+        const bloqueo = construirBloqueoPuertaDesdePose(piso.bloqueoPuerta || piso.inicioCamara);
+        bloqueosPuertaCaminar = bloqueo ? [bloqueo] : [];
+    }
+
+    function aplicarBloqueoPuertaCaminar() {
+        for (const b of bloqueosPuertaCaminar) {
+            const dist = (posicionCaminar.x - b.x) * b.nx + (posicionCaminar.z - b.z) * b.nz;
+            if (b.local) {
+                const lateral = Math.abs((posicionCaminar.x - b.x) * -b.nz + (posicionCaminar.z - b.z) * b.nx);
+                if (Math.abs(posicionCaminar.y - b.y) > MEDIA_ALTURA_BLOQUEO_PUERTA_LOCAL ||
+                    lateral > MEDIO_ANCHO_BLOQUEO_PUERTA_LOCAL ||
+                    dist < -PROFUNDIDAD_BLOQUEO_PUERTA_LOCAL) continue;
+            }
+            if (dist < RADIO_CAPSULA_CAMINAR) {
+                const correccion = RADIO_CAPSULA_CAMINAR - dist;
+                posicionCaminar.x += b.nx * correccion;
+                posicionCaminar.z += b.nz * correccion;
+            }
+        }
+    }
+
+    function verificarColisionCaminar() {
+        if (!grillaVoxelActual) return;
+        const centro = posicionCaminar.y - ALTURA_OJOS_CAMINAR + ALTURA_CAPSULA_CAMINAR * 0.5;
+        const mitad = ALTURA_CAPSULA_CAMINAR * 0.5 - RADIO_CAPSULA_CAMINAR;
+        if (grillaVoxelActual.consultarCapsula(posicionCaminar.x, centro, posicionCaminar.z, mitad, RADIO_CAPSULA_CAMINAR, empujeCaminar)) {
+            posicionCaminar.x += empujeCaminar.x;
+            posicionCaminar.y += empujeCaminar.y;
+            posicionCaminar.z += empujeCaminar.z;
+
+            if (empujeCaminar.y < 0 && velocidadCaminar.y > 0) velocidadCaminar.y = 0;
+
+            if (!caminarEnSuelo && empujeCaminar.y > 0 && velocidadCaminar.y < 0) {
+                velocidadCaminar.y = 0;
+                caminarEnSuelo = true;
+            }
+        }
+    }
+
+    function aplicarLimitesCaminar() {
+        if (!limitesPisoActual) return;
+        const [minX, minY, minZ] = limitesPisoActual.minimo;
+        const [maxX, , maxZ] = limitesPisoActual.maximo;
+
+        const loX = minX - MARGEN_LIMITES_CAMINAR, hiX = maxX + MARGEN_LIMITES_CAMINAR;
+        const loZ = minZ - MARGEN_LIMITES_CAMINAR, hiZ = maxZ + MARGEN_LIMITES_CAMINAR;
+        if (loX < hiX) posicionCaminar.x = Math.max(loX, Math.min(hiX, posicionCaminar.x));
+        if (loZ < hiZ) posicionCaminar.z = Math.max(loZ, Math.min(hiZ, posicionCaminar.z));
+
+        if (posicionCaminar.y < minY - MARGEN_RECUPERACION_CAIDA) {
+            const inicio = PISOS[pisoActual]?.inicioCamara;
+            if (inicio) {
+                reiniciarEstadoCaminar(new pc.Vec3(...inicio.posicion));
+                cabeceo = inicio.rotacion[0];
+                guiñada = inicio.rotacion[1];
+                const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                if (camara) camara.setEulerAngles(cabeceo, guiñada, 0);
+            }
+        }
+    }
+
+    function pasoCaminar(dt, moveX, moveZ, saltoPresionado, direccionMundo) {
+        const sueloY = sondearSueloCaminar();
+        const haySuelo = sueloY !== null;
+
+        if (velocidadCaminar.y < 0) caminarSaltando = false;
+        if (saltoPresionado && !caminarSaltando && caminarEnSuelo && !caminarSaltoPresionado) {
+            caminarSaltando = true;
+            velocidadCaminar.y = VELOCIDAD_SALTO_CAMINAR;
+            caminarEnSuelo = false;
+        }
+        caminarSaltoPresionado = saltoPresionado;
+
+        if (haySuelo && !caminarSaltando) {
+            const yObjetivo = sueloY + ALTURA_FLOTACION_CAMINAR + ALTURA_OJOS_CAMINAR;
+            const desplazamiento = posicionCaminar.y - yObjetivo;
+            if (desplazamiento > 0.1) {
+                velocidadCaminar.y -= GRAVEDAD_CAMINAR * dt;
+                const siguienteY = posicionCaminar.y + velocidadCaminar.y * dt;
+                if (siguienteY <= yObjetivo) { posicionCaminar.y = yObjetivo; velocidadCaminar.y = 0; }
+                caminarEnSuelo = false;
+            } else {
+                const fuerzaResorte = -RIGIDEZ_RESORTE_CAMINAR * desplazamiento - AMORTIGUACION_RESORTE_CAMINAR * velocidadCaminar.y;
+                velocidadCaminar.y += fuerzaResorte * dt;
+                caminarEnSuelo = true;
+            }
+        } else {
+            velocidadCaminar.y -= GRAVEDAD_CAMINAR * dt;
+            caminarEnSuelo = false;
+        }
+
+        let dirX, dirZ;
+        if (direccionMundo) {
+            dirX = direccionMundo.x;
+            dirZ = direccionMundo.z;
+        } else {
+            establecerBaseGuiñada(guiñada);
+            const fz = -moveZ;
+            dirX = derechaCaminar.x * moveX + adelanteCaminar.x * fz;
+            dirZ = derechaCaminar.z * moveX + adelanteCaminar.z * fz;
+        }
+        const velocidadObjetivo = caminarEnSuelo ? VELOCIDAD_SUELO_CAMINAR : VELOCIDAD_AIRE_CAMINAR;
+
+        const factorAmortiguacion = caminarEnSuelo ? AMORTIGUACION_SUELO_CAMINAR : AMORTIGUACION_AIRE_CAMINAR;
+        const alfaAmortiguacion = 1 - Math.pow(factorAmortiguacion, dt * 1000);
+        velocidadCaminar.x = pc.math.lerp(velocidadCaminar.x, dirX * velocidadObjetivo, alfaAmortiguacion);
+        velocidadCaminar.z = pc.math.lerp(velocidadCaminar.z, dirZ * velocidadObjetivo, alfaAmortiguacion);
+
+        deltaPasoCaminar.copy(velocidadCaminar).mulScalar(dt);
+        posicionCaminar.add(deltaPasoCaminar);
+
+        intentarAutoEscalonCaminar();
+        verificarColisionCaminar();
+        aplicarBloqueoPuertaCaminar();
+        aplicarLimitesCaminar();
+    }
+
+    const RADIO_ANILLO_NAV = 0.18;
+    const SEGMENTOS_ANILLO_NAV = 20;
+    const DISTANCIA_LLEGADA_NAV = 0.5;
+    const EPSILON_PROGRESO_BLOQUEADO_NAV = 0.03;
+    const DURACION_BLOQUEO_NAV = 0.5;
+    const DISTANCIA_MIN_OBJETIVO_NAV = 1.0;
+
+    const svgCursorNav = document.getElementById('svgCursorNav');
+    const anilloCursorNav = document.getElementById('anilloCursorNav');
+    const direccionRayoNav = new pc.Vec3();
+    const puntoRayoNav = new pc.Vec3();
+    const puntoAnilloNav = new pc.Vec3();
+    const pantallaAnilloNav = new pc.Vec3();
+
+    let objetivoNav = null;
+    let distanciaAnteriorObjetivoNav = Infinity;
+    let tiempoAtascoObjetivoNav = 0;
+
+    function lanzarRayoCursor(offsetX, offsetY, camara) {
+        if (!grillaVoxelActual) return null;
+        const posCamara = camara.getPosition();
+        camara.camera.screenToWorld(offsetX, offsetY, 1.0, puntoRayoNav);
+        direccionRayoNav.set(puntoRayoNav.x - posCamara.x, puntoRayoNav.y - posCamara.y, puntoRayoNav.z - posCamara.z);
+        if (direccionRayoNav.lengthSq() < 1e-9) return null;
+        direccionRayoNav.normalize();
+        const impacto = grillaVoxelActual.consultarRayo(posCamara.x, posCamara.y, posCamara.z, direccionRayoNav.x, direccionRayoNav.y, direccionRayoNav.z, camara.camera.farClip);
+        if (!impacto) return null;
+        const dx = impacto.x - posCamara.x, dy = impacto.y - posCamara.y, dz = impacto.z - posCamara.z;
+        if (dx * dx + dy * dy + dz * dz < DISTANCIA_MIN_OBJETIVO_NAV * DISTANCIA_MIN_OBJETIVO_NAV) return null;
+        return impacto;
+    }
+
+    function renderizarAnilloNav(impacto, camara) {
+        const puntos = [];
+        for (let i = 0; i < SEGMENTOS_ANILLO_NAV; i++) {
+            const theta = (i / SEGMENTOS_ANILLO_NAV) * Math.PI * 2;
+            puntoAnilloNav.set(impacto.x + Math.cos(theta) * RADIO_ANILLO_NAV, impacto.y + 0.02, impacto.z + Math.sin(theta) * RADIO_ANILLO_NAV);
+            camara.camera.worldToScreen(puntoAnilloNav, pantallaAnilloNav);
+            puntos.push(`${pantallaAnilloNav.x.toFixed(1)},${(pantallaAnilloNav.y + desplazamientoCanvasSuperior).toFixed(1)}`);
+        }
+        anilloCursorNav.setAttribute('points', puntos.join(' '));
+        svgCursorNav.style.display = '';
+    }
+
+    function ocultarAnilloNav() {
+        svgCursorNav.style.display = 'none';
+    }
+
+    const resultadoDireccionNav = { x: 0, z: 0 };
+
+    function conducirObjetivoNav(dt) {
+        const dx = objetivoNav.x - posicionCaminar.x;
+        const dz = objetivoNav.z - posicionCaminar.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+
+        if (dist < DISTANCIA_LLEGADA_NAV) { objetivoNav = null; return null; }
+
+        if (dist > distanciaAnteriorObjetivoNav - EPSILON_PROGRESO_BLOQUEADO_NAV) {
+            tiempoAtascoObjetivoNav += dt;
+            if (tiempoAtascoObjetivoNav > DURACION_BLOQUEO_NAV) { objetivoNav = null; return null; }
+        } else {
+            tiempoAtascoObjetivoNav = 0;
+        }
+        distanciaAnteriorObjetivoNav = dist;
+
+        const invDist = 1 / dist;
+        resultadoDireccionNav.x = dx * invDist;
+        resultadoDireccionNav.z = dz * invDist;
+        return resultadoDireccionNav;
+    }
+
+    const TECLA_A_EJE = {
+        KeyW: [0, 0, -1], KeyS: [0, 0, 1],
+        KeyA: [-1, 0, 0], KeyD: [1, 0, 0],
+        ArrowUp: [0, 0, -1], ArrowDown: [0, 0, 1],
+        ArrowLeft: [-1, 0, 0], ArrowRight: [1, 0, 0]
+    };
+    const TECLAS_VERTICALES = { KeyE: 1, KeyQ: -1 };
+
+    window.addEventListener('keydown', (e) => {
+        if (TECLA_A_EJE[e.code] || TECLAS_VERTICALES[e.code] || e.code === 'Space') {
+            teclasPresionadas.add(e.code);
+            if (e.code === 'Space') e.preventDefault();
+        }
+    });
+    window.addEventListener('keyup', (e) => teclasPresionadas.delete(e.code));
+
+    window.addEventListener('keydown', (e) => {
+        if (e.code !== 'KeyF' || (modoNavActual !== 'caminar' && modoNavActual !== 'vuelo')) return;
+        establecerModoCaminarVuelo(modoNavActual === 'vuelo' ? 'caminar' : 'vuelo');
+    });
+
+    window.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = Math.exp(-e.deltaY * 0.001);
+        if (modoNavActual === 'orbita' && !modoLibreOrbitaEdicion) {
+            autoRotandoExt = false;
+            distanciaOrbita = Math.max(DISTANCIA_ORBITA_MIN, Math.min(obtenerDistanciaOrbitaMax(), distanciaOrbita / factor));
+            const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+            if (camara) actualizarCamaraOrbita(camara);
+            return;
+        }
+        velocidadMovimiento = Math.max(VELOCIDAD_MOVIMIENTO_MIN, Math.min(VELOCIDAD_MOVIMIENTO_MAX, velocidadMovimiento * factor));
+    }, { passive: false });
+
+    const FPS_OBJETIVO_BAJO = window.__esMovil ? 24 : 30;
+    const FPS_OBJETIVO_ALTO = window.__esMovil ? 40 : 50;
+    const SPLAT_BUDGET_MIN = window.__esMovil ? 250000 : 1500000;
+    const SPLAT_BUDGET_MAX = window.__esMovil ? 1800000 : 9000000;
+    const INTERVALO_EVALUACION_BUDGET = 600;
+    const GRACIA_TRAS_CARGA_PISO = 2500;
+    let splatBudgetActual = SPLAT_BUDGET_MIN;
+    let tiempoUltimaEvaluacionBudget = 0;
+    let tiempoDesbloqueoEvaluacionBudget = 0;
+    let acumuladorDtBudget = 0;
+    let acumuladorFramesBudget = 0;
+
+    function ajustarSplatBudget(dt) {
+        const ahora = performance.now();
+        if (ahora < tiempoDesbloqueoEvaluacionBudget) return;
+        acumuladorDtBudget += dt;
+        acumuladorFramesBudget += 1;
+        if (ahora - tiempoUltimaEvaluacionBudget < INTERVALO_EVALUACION_BUDGET) return;
+        tiempoUltimaEvaluacionBudget = ahora;
+        const frames = acumuladorFramesBudget;
+        const dtTotal = acumuladorDtBudget;
+        acumuladorDtBudget = 0;
+        acumuladorFramesBudget = 0;
+        if (frames < 5 || dtTotal <= 0) return;
+
+        const fpsPromedio = frames / dtTotal;
+        let nuevoBudget = splatBudgetActual;
+        if (fpsPromedio < FPS_OBJETIVO_BAJO) {
+            nuevoBudget = Math.max(SPLAT_BUDGET_MIN, Math.round(splatBudgetActual * 0.8));
+        } else if (fpsPromedio > FPS_OBJETIVO_ALTO) {
+            nuevoBudget = Math.min(SPLAT_BUDGET_MAX, Math.round(splatBudgetActual * 1.15));
+        }
+        if (nuevoBudget !== splatBudgetActual) {
+            splatBudgetActual = nuevoBudget;
+            elementoApp.app.scene.gsplat.splatBudget = splatBudgetActual;
+        }
+    }
+
+    elementoApp.ready().then(async () => {
+        try {
+            const canvas = elementoApp.querySelector('canvas');
+            if (!canvas) throw new Error('elementoApp.querySelector("canvas") devolvió null después de que la app estuviera lista');
+
+            elementoApp.app.scene.gsplat.splatBudget = splatBudgetActual;
+
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            let modoArrastre = null;
+            const SENSIBILIDAD_PANEO = 0.01;
+
+            const UMBRAL_ARRASTRE_CLIC = 6;
+            let distanciaArrastre = 0;
+
+            canvas.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0 && e.button !== 2) return;
+                autoRotandoExt = false;
+                modoArrastre = e.button === 0 ? 'mirar' : 'panear';
+                arrastrando = true;
+                distanciaArrastre = 0;
+                canvas.setPointerCapture(e.pointerId);
+            });
+            canvas.addEventListener('pointerup', (e) => {
+                const fueClicMirar = modoArrastre === 'mirar' && distanciaArrastre < UMBRAL_ARRASTRE_CLIC;
+                arrastrando = false;
+                modoArrastre = null;
+                canvas.releasePointerCapture(e.pointerId);
+
+                if (fueClicMirar && modoNavActual === 'caminar') {
+                    const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                    const impacto = camara && lanzarRayoCursor(e.offsetX, e.offsetY, camara);
+                    if (impacto) {
+                        objetivoNav = { x: impacto.x, z: impacto.z };
+                        distanciaAnteriorObjetivoNav = Infinity;
+                        tiempoAtascoObjetivoNav = 0;
+                        ocultarAnilloNav();
+                    }
+                }
+            });
+            canvas.addEventListener('pointercancel', () => { arrastrando = false; modoArrastre = null; });
+            canvas.addEventListener('pointerleave', () => ocultarAnilloNav());
+            canvas.addEventListener('pointermove', (e) => {
+                if (!arrastrando) {
+                    if (modoNavActual !== 'caminar') { ocultarAnilloNav(); return; }
+                    const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                    const impacto = camara && lanzarRayoCursor(e.offsetX, e.offsetY, camara);
+                    if (impacto && camara) renderizarAnilloNav(impacto, camara);
+                    else ocultarAnilloNav();
+                    return;
+                }
+                distanciaArrastre += Math.abs(e.movementX) + Math.abs(e.movementY);
+                ocultarAnilloNav();
+                const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                if (!camara) return;
+
+                if (modoNavActual === 'orbita' && !modoLibreOrbitaEdicion) {
+                    if (modoArrastre !== 'mirar') return;
+                    guiñadaOrbita -= e.movementX * SENSIBILIDAD_VISTA_ORBITA;
+                    cabeceoOrbita = Math.max(-85, Math.min(85, cabeceoOrbita + e.movementY * SENSIBILIDAD_VISTA_ORBITA));
+                    actualizarCamaraOrbita(camara);
+                    return;
+                }
+
+                if (modoArrastre === 'mirar') {
+                    guiñada -= e.movementX * SENSIBILIDAD_VISTA;
+                    cabeceo = Math.max(-89, Math.min(89, cabeceo - e.movementY * SENSIBILIDAD_VISTA));
+                    camara.setEulerAngles(cabeceo, guiñada, 0);
+                } else if (modoArrastre === 'panear' && modoNavActual !== 'caminar') {
+                    const derecha = new pc.Vec3(camara.right.x, camara.right.y, camara.right.z);
+                    const arriba = new pc.Vec3(camara.up.x, camara.up.y, camara.up.z);
+                    const delta = derecha.mulScalar(-e.movementX * SENSIBILIDAD_PANEO)
+                        .add(arriba.mulScalar(e.movementY * SENSIBILIDAD_PANEO));
+                    if (modoLibreOrbitaEdicion) camara.translate(delta.x, delta.y, delta.z);
+                    else intentarMover(camara, delta.x, delta.y, delta.z);
+                }
+            });
+
+            elementoApp.app.on('update', (dt) => {
+                desplazamientoCanvasSuperior = canvas.getBoundingClientRect().top;
+                ajustarSplatBudget(dt);
+
+                const camara = document.querySelector('pc-entity[name="camara"]')?.entity;
+                if (!camara) return;
+
+                if (transicionVista) {
+                    if (arrastrando) {
+                        transicionVista = null;
+                    } else {
+                        const t = Math.min(1, (performance.now() - transicionVista.inicio) / DURACION_TRANSICION_VISTA);
+                        const e = facilitarTransicion(t);
+                        const { desde, hasta } = transicionVista;
+                        if (transicionVista.tipo === 'orbita') {
+                            guiñadaOrbita = pc.math.lerp(desde.guiñada, hasta.guiñada, e);
+                            cabeceoOrbita = pc.math.lerp(desde.cabeceo, hasta.cabeceo, e);
+                            distanciaOrbita = pc.math.lerp(desde.distancia, hasta.distancia, e);
+                            actualizarCamaraOrbita(camara);
+                        } else {
+                            camara.setPosition(
+                                pc.math.lerp(desde.pos[0], hasta.pos[0], e),
+                                pc.math.lerp(desde.pos[1], hasta.pos[1], e),
+                                pc.math.lerp(desde.pos[2], hasta.pos[2], e)
+                            );
+                            cabeceo = pc.math.lerp(desde.cabeceo, hasta.cabeceo, e);
+                            guiñada = pc.math.lerp(desde.guiñada, hasta.guiñada, e);
+                            camara.setEulerAngles(cabeceo, guiñada, 0);
+                        }
+                        if (t >= 1) {
+                            if (transicionVista.tipo === 'libre') reiniciarEstadoCaminar(camara.getPosition());
+                            transicionVista = null;
+                        }
+                        return;
+                    }
+                }
+
+                if (MODO_EDICION) {
+                    const p = camara.getPosition();
+                    lecturaEditor.textContent = modoNavActual === 'orbita'
+                        ? `pos: [${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}]  orbita: guiñada ${guiñadaOrbita.toFixed(1)} cabeceo ${cabeceoOrbita.toFixed(1)} dist ${distanciaOrbita.toFixed(2)}`
+                        : `pos: [${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}]  rot: [${cabeceo.toFixed(1)}, ${guiñada.toFixed(1)}, 0]`;
+                }
+
+                actualizarChipPuerta(camara);
+                actualizarNotaVista(camara);
+                actualizarJugadorMinimapa(camara);
+                if (actualizarRecorridoAutomatico(camara, dt)) return;
+
+                if (modoNavActual === 'orbita' && !modoLibreOrbitaEdicion) {
+                    if (autoRotandoExt) {
+                        guiñadaOrbita += VELOCIDAD_AUTOROTACION_EXT * dt;
+                        actualizarCamaraOrbita(camara);
+                    }
+                    return;
+                }
+
+                if (modoNavActual === 'caminar') {
+                    const mover = new pc.Vec3();
+                    teclasPresionadas.forEach((codigo) => {
+                        if (TECLA_A_EJE[codigo]) {
+                            const [x, , z] = TECLA_A_EJE[codigo];
+                            mover.add(new pc.Vec3(x, 0, z));
+                        }
+                    });
+                    const saltoPresionado = teclasPresionadas.has('Space');
+
+                    if (objetivoNav && mover.lengthSq() > 0) { objetivoNav = null; }
+
+                    let direccionMundo = null;
+                    if (objetivoNav) {
+                        direccionMundo = conducirObjetivoNav(dt);
+                    }
+
+                    acumuladorCaminar = Math.min(acumuladorCaminar + dt, SUBPASOS_MAX_CAMINAR * DT_FIJO_CAMINAR);
+                    const numPasos = Math.floor(acumuladorCaminar / DT_FIJO_CAMINAR);
+                    for (let i = 0; i < numPasos; i++) {
+                        posicionAnteriorCaminar.copy(posicionCaminar);
+                        pasoCaminar(DT_FIJO_CAMINAR, mover.x, mover.z, saltoPresionado, direccionMundo);
+                        acumuladorCaminar -= DT_FIJO_CAMINAR;
+                    }
+
+                    const alfa = acumuladorCaminar / DT_FIJO_CAMINAR;
+                    posRenderCaminar.lerp(posicionAnteriorCaminar, posicionCaminar, alfa);
+                    camara.setPosition(posRenderCaminar.x, posRenderCaminar.y, posRenderCaminar.z);
+                    camara.setEulerAngles(cabeceo, guiñada, 0);
+                    return;
+                }
+
+                if (teclasPresionadas.size === 0) return;
+
+                const mover = new pc.Vec3();
+                let vertical = 0;
+                teclasPresionadas.forEach((codigo) => {
+                    if (TECLA_A_EJE[codigo]) {
+                        const [x, , z] = TECLA_A_EJE[codigo];
+                        mover.add(new pc.Vec3(x, 0, z));
+                    }
+                    if (TECLAS_VERTICALES[codigo]) vertical += TECLAS_VERTICALES[codigo];
+                });
+
+                const delta = new pc.Vec3();
+                if (mover.lengthSq() > 0) {
+                    const adelante = new pc.Vec3(camara.forward.x, camara.forward.y, camara.forward.z);
+                    const derecha = new pc.Vec3(camara.right.x, camara.right.y, camara.right.z);
+                    delta.add(adelante.mulScalar(-mover.z)).add(derecha.mulScalar(mover.x)).normalize();
+                }
+                delta.mulScalar(velocidadMovimiento * dt);
+                if (vertical !== 0) delta.y += vertical * velocidadMovimiento * dt;
+                if (delta.lengthSq() > 0) {
+                    if (modoLibreOrbitaEdicion) camara.translate(delta.x, delta.y, delta.z);
+                    else intentarMover(camara, delta.x, delta.y, delta.z);
+                }
+            });
+
+            cargarPiso(PISO_PRINCIPAL || PISO_EXTERIOR || Object.keys(PISOS)[0]).then(() => {
+                try {
+                    configurarCielo(elementoApp.app);
+                } catch (err) {
+                    console.error('configurarCielo falló (sin cielo, sigue el resto):', err);
+                }
+            }).catch((err) => {
+                console.error('cargarPiso falló:', err);
+            });
+        } catch (err) {
+            console.error('La configuración falló:', err);
+        }
+    }).catch((err) => {
+        console.error('elementoApp.ready() falló:', err);
+    });
+</script>
+
+</body>
+</html>
