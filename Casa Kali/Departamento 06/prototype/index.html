@@ -820,6 +820,9 @@
         <div class="encabezado-editor">Modo Edición</div>
         <div id="lecturaEditor"></div>
 
+        <div class="etiqueta-seccion-editor">Colisión</div>
+        <button id="botonColisionEdicion">Colisión: ON</button>
+
         <div class="etiqueta-seccion-editor">Punto de inicio</div>
         <button id="botonSpawnAqui">Marcar inicio aquí</button>
         <div id="estadoSpawn"></div>
@@ -889,8 +892,11 @@
                 json: 'https://d28zzqy0iyovbz.cloudfront.net/a90664d6/v1/scene.voxel.json',
                 bin: 'https://d28zzqy0iyovbz.cloudfront.net/a90664d6/v1/scene.voxel.bin'
             },
-            inicioCamara: { posicion: [20, 1.6, 0], rotacion: [0, 0, 0] },
-            vistas: [],
+            inicioCamara: { posicion: [-0.4, 1.193, 0.177], rotacion: [-5.8, -393.2, 0] },
+            vistas: [
+                { etiqueta: 'v1', posicion: [-0.4, 1.193, 0.177], rotacion: [-5.8, -393.2, 0] },
+                { etiqueta: 'v2', posicion: [-0.25, 1.2, -3.65], rotacion: [-4.7, -494, 0] }
+            ],
             portales: []
         }
     };
@@ -1906,6 +1912,7 @@
     const estadoPortal = document.getElementById('estadoPortal');
     const botonSpawnAqui = document.getElementById('botonSpawnAqui');
     const estadoSpawn = document.getElementById('estadoSpawn');
+    const botonColisionEdicion = document.getElementById('botonColisionEdicion');
 
     let portalPendiente = null;
 
@@ -1997,6 +2004,32 @@
             if (modoNavActual === 'orbita') return;
             PISOS[pisoActual].inicioCamara = poseActual();
             actualizarEstadoSpawn();
+        });
+
+        // Edit-only noclip: lets small/cramped scans still be navigated freely while placing
+        // vistas and portals, without touching the saved voxel data or the real walk/fly toggle
+        // the published viewer exposes. Reuses fly mode's own already-correct free movement
+        // (which becomes true no-clip the moment grillaVoxelActual is null) instead of inventing
+        // a second movement system just for editing.
+        let colisionDeshabilitadaEdicion = false;
+        let grillaVoxelGuardadaEdicion = null;
+        let modoNavAntesDeColisionOff = null;
+        botonColisionEdicion.addEventListener('click', () => {
+            if (modoNavActual === 'orbita') return;
+            colisionDeshabilitadaEdicion = !colisionDeshabilitadaEdicion;
+            if (colisionDeshabilitadaEdicion) {
+                grillaVoxelGuardadaEdicion = grillaVoxelActual;
+                grillaVoxelActual = null;
+                modoNavAntesDeColisionOff = modoNavActual;
+                if (modoNavActual === 'caminar') establecerModoCaminarVuelo('vuelo');
+            } else {
+                grillaVoxelActual = grillaVoxelGuardadaEdicion;
+                grillaVoxelGuardadaEdicion = null;
+                if (modoNavAntesDeColisionOff === 'caminar') establecerModoCaminarVuelo('caminar');
+                modoNavAntesDeColisionOff = null;
+            }
+            botonColisionEdicion.textContent = `Colisión: ${colisionDeshabilitadaEdicion ? 'OFF' : 'ON'}`;
+            botonColisionEdicion.setAttribute('aria-pressed', String(!colisionDeshabilitadaEdicion));
         });
 
         document.getElementById('botonAgregarVista').addEventListener('click', () => {
