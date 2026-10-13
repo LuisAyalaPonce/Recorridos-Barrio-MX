@@ -1344,14 +1344,17 @@
     // HDR parser doesn't set the loaded texture's `projection` to equirectangular on its own (only
     // the addressing modes), and <pc-asset> has no attribute to set that either - without it,
     // EnvLighting.generateSkyboxCubemap silently reprojects using the wrong sampling function.
-    const URL_CIELO_HDRI = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_48d_partly_cloudy_puresky_2k.hdr';
+    // Cielo: el mismo HDRI de Poly Haven (kloofendal_48d_partly_cloudy_puresky, CC0) ya convertido
+    // a JPG sRGB tal como se veia (camara sin tonemap = lineal recortado a 1). 134 KB en vez de los
+    // 5.4 MB del .hdr, y alojado en este mismo repo en vez de depender de dl.polyhaven.org.
+    const URL_CIELO_HDRI = 'https://luisayalaponce.github.io/Recorridos-Barrio-MX/assets/cielo-kloofendal-2k.jpg';
     // Kept around (rather than just assigning straight to scene.skybox) so every later floor
     // switch can hide/restore the same cubemap around its own loading window, instead of only the
     // very first load ever bothering to time this.
     let cuboMapaCielo = null;
 
     function configurarCielo(app) {
-        const activo = new pc.Asset('cielo-hdri', 'texture', { url: URL_CIELO_HDRI });
+        const activo = new pc.Asset('cielo', 'texture', { url: URL_CIELO_HDRI }, { srgb: true, mipmaps: false });
         app.assets.add(activo);
         activo.ready(() => {
             const textura = activo.resource;
@@ -1361,6 +1364,9 @@
             // flat gradient where any size looked identical.
             cuboMapaCielo = pc.EnvLighting.generateSkyboxCubemap(textura, 1024);
             app.scene.skybox = cuboMapaCielo;
+            // El cubemap ya tiene su propia copia: la imagen fuente solo ocupa memoria de video.
+            app.assets.remove(activo);
+            activo.unload();
             app.scene.skyboxIntensity = 1;
             // 'dome' was tried to see if it allowed repositioning the horizon, but its geometry
             // is a shallow saucer that barely extends below its own origin (built assuming a
