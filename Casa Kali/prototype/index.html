@@ -1896,6 +1896,20 @@
         document.getElementById('etiquetaMenuPisos').textContent = id === 'EXT' ? 'EXTERIOR' : id;
     }
 
+    function esperarSplatsVisibles(maxMs) {
+        return new Promise((resolve) => {
+            const app = elementoApp.app;
+            const inicio = performance.now();
+            const revisar = () => {
+                if (app.stats.frame.gsplats > 0 || performance.now() - inicio > maxMs) {
+                    app.off('frameend', revisar);
+                    resolve();
+                }
+            };
+            app.on('frameend', revisar);
+        });
+    }
+
     async function cargarPiso(id, llegada) {
         if (id === pisoActual) return;
         const piso = PISOS[id];
@@ -1903,7 +1917,7 @@
 
         cambiandoPiso = true;
         elementoTransicion.classList.add('activo');
-        await new Promise(r => setTimeout(r, 350));
+        if (pisoActual) await new Promise(r => setTimeout(r, 350));
 
         elementoCarga.classList.remove('oculto');
         elementoApp.app.scene.skybox = null;
@@ -1997,6 +2011,7 @@
         actualizarSelectorModoNav();
         modoLibreOrbitaEdicion = false;
         if (MODO_EDICION) { actualizarUIPortal(); actualizarEstadoSpawn(); actualizarUIFoco(); }
+        await esperarSplatsVisibles(20000);
         if (cuboMapaCielo) elementoApp.app.scene.skybox = cuboMapaCielo;
         elementoCarga.classList.add('oculto');
         elementoTransicion.classList.remove('activo');
@@ -2868,7 +2883,7 @@
     const SPLAT_BUDGET_MAX = window.__esMovil ? 1800000 : 9000000;
     const INTERVALO_EVALUACION_BUDGET = 600;
     const GRACIA_TRAS_CARGA_PISO = 2500;
-    let splatBudgetActual = SPLAT_BUDGET_MIN;
+    let splatBudgetActual = window.__esMovil ? SPLAT_BUDGET_MIN : 4500000;
     let tiempoUltimaEvaluacionBudget = 0;
     let tiempoDesbloqueoEvaluacionBudget = 0;
     let acumuladorDtBudget = 0;
@@ -2906,6 +2921,7 @@
             if (!canvas) throw new Error('elementoApp.querySelector("canvas") devolvió null después de que la app estuviera lista');
 
             elementoApp.app.scene.gsplat.splatBudget = splatBudgetActual;
+            elementoApp.app.scene.gsplat.lodUnderfillLimit = 5;
 
             canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -3094,11 +3110,21 @@
             });
 
             cargarPiso(PISO_PRINCIPAL || PISO_EXTERIOR || Object.keys(PISOS)[0]).then(() => {
-                try {
-                    configurarCielo(elementoApp.app);
-                } catch (err) {
-                    console.error('configurarCielo falló (sin cielo, sigue el resto):', err);
-                }
+                const inicio = performance.now();
+                let ultimaDescarga = inicio;
+                const observador = new PerformanceObserver(() => { ultimaDescarga = performance.now(); });
+                observador.observe({ type: 'resource' });
+                const espera = setInterval(() => {
+                    const ahora = performance.now();
+                    if (ahora - ultimaDescarga < 2500 && ahora - inicio < 60000) return;
+                    clearInterval(espera);
+                    observador.disconnect();
+                    try {
+                        configurarCielo(elementoApp.app);
+                    } catch (err) {
+                        console.error('configurarCielo falló (sin cielo, sigue el resto):', err);
+                    }
+                }, 500);
             }).catch((err) => {
                 console.error('cargarPiso falló:', err);
             });

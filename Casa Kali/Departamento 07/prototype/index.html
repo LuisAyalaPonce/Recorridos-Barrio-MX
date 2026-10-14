@@ -1339,45 +1339,6 @@
         });
     }
 
-    // Loaded via the JS asset API rather than declarative <pc-sky>/<pc-asset> tags: the engine's
-    // HDR parser doesn't set the loaded texture's `projection` to equirectangular on its own (only
-    // the addressing modes), and <pc-asset> has no attribute to set that either - without it,
-    // EnvLighting.generateSkyboxCubemap silently reprojects using the wrong sampling function.
-    // Cielo: el mismo HDRI de Poly Haven (kloofendal_48d_partly_cloudy_puresky, CC0) ya convertido
-    // a JPG sRGB tal como se veia (camara sin tonemap = lineal recortado a 1). 134 KB en vez de los
-    // 5.4 MB del .hdr, y alojado en este mismo repo en vez de depender de dl.polyhaven.org.
-    const URL_CIELO_HDRI = 'https://luisayalaponce.github.io/Recorridos-Barrio-MX/assets/cielo-kloofendal-2k.jpg';
-    // Kept around (rather than just assigning straight to scene.skybox) so every later floor
-    // switch can hide/restore the same cubemap around its own loading window, instead of only the
-    // very first load ever bothering to time this.
-    let cuboMapaCielo = null;
-
-    function configurarCielo(app) {
-        const activo = new pc.Asset('cielo', 'texture', { url: URL_CIELO_HDRI }, { srgb: true, mipmaps: false });
-        app.assets.add(activo);
-        activo.ready(() => {
-            const textura = activo.resource;
-            textura.projection = pc.TEXTUREPROJECTION_EQUIRECT;
-            // 1024 (not the tiny 128 the earlier 1px-wide procedural gradient used) - a real 2K
-            // photographic HDRI viewed directly as the background needs real resolution, unlike a
-            // flat gradient where any size looked identical.
-            cuboMapaCielo = pc.EnvLighting.generateSkyboxCubemap(textura, 1024);
-            app.scene.skybox = cuboMapaCielo;
-            // El cubemap ya tiene su propia copia: la imagen fuente solo ocupa memoria de video.
-            app.assets.remove(activo);
-            activo.unload();
-            app.scene.skyboxIntensity = 1;
-            // 'dome' was tried to see if it allowed repositioning the horizon, but its geometry
-            // is a shallow saucer that barely extends below its own origin (built assuming a
-            // normal game world with ground at Y≈0) - our floors have very different, sometimes
-            // deeply negative, local Y ranges, so the camera ends up outside the mesh on some
-            // floors and the sky disappears entirely (front-face culling means nothing renders
-            // from outside it). 'infinite' is direction-only and always works regardless of
-            // camera position; the horizon-height request isn't achievable this way.
-        });
-        activo.once('error', (err) => console.error('No se pudo cargar el cielo HDRI:', err));
-        app.assets.load(activo);
-    }
 
     function numeroPiso(id) {
         if (id === 'EXT') return Infinity;
@@ -1555,19 +1516,32 @@
         document.getElementById('etiquetaMenuPisos').textContent = id === 'EXT' ? 'EXTERIOR' : id;
     }
 
+    function esperarSplatsVisibles(maxMs) {
+        return new Promise((resolve) => {
+            const app = elementoApp.app;
+            const inicio = performance.now();
+            const revisar = () => {
+                if (app.stats.frame.gsplats > 0 || performance.now() - inicio > maxMs) {
+                    app.off('frameend', revisar);
+                    resolve();
+                }
+            };
+            app.on('frameend', revisar);
+        });
+    }
+
     async function cargarPiso(id, llegada) {
         if (id === pisoActual) return;
         const piso = PISOS[id];
         if (!piso) return;
 
         elementoTransicion.classList.add('activo');
-        await new Promise(r => setTimeout(r, 350));
+        if (pisoActual) await new Promise(r => setTimeout(r, 350));
 
         elementoCarga.classList.remove('oculto');
         // Hidden for every floor switch, not just the first ever load - otherwise, once the sky is
         // configured, it stays assigned and shows straight through any gaps in the new floor's
         // geometry while it's still loading/streaming in, instead of waiting for the reveal.
-        elementoApp.app.scene.skybox = null;
 
         if (entidadPisoActual) entidadPisoActual.remove();
         if (recursoActual) recursoActual.remove();
@@ -1669,7 +1643,7 @@
         actualizarMinimapa(id);
         actualizarSelectorModoNav();
         if (MODO_EDICION) { actualizarUIPortal(); actualizarEstadoSpawn(); }
-        if (cuboMapaCielo) elementoApp.app.scene.skybox = cuboMapaCielo;
+        await esperarSplatsVisibles(20000);
         elementoCarga.classList.add('oculto');
         elementoTransicion.classList.remove('activo');
 
@@ -2500,7 +2474,7 @@
     // Starts at the floor, not the old device-class guess - every device ramps up from
     // deliberately bad quality and climbs only as far as it can actually sustain, rather than
     // starting high and hoping it doesn't need to step down.
-    let splatBudgetActual = SPLAT_BUDGET_MIN;
+    let splatBudgetActual = window.__esMovil ? SPLAT_BUDGET_MIN : 4500000;
     let tiempoUltimaEvaluacionBudget = 0;
     let tiempoDesbloqueoEvaluacionBudget = 0;
     let acumuladorDtBudget = 0;
@@ -2545,6 +2519,7 @@
             // balancer redistributes against whatever the budget currently is (farthest nodes
             // degraded first, closest nodes get any spare detail).
             elementoApp.app.scene.gsplat.splatBudget = splatBudgetActual;
+            elementoApp.app.scene.gsplat.lodUnderfillLimit = 2;
 
             canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -2728,17 +2703,7 @@
                 }
             });
 
-            cargarPiso('DEPARTAMENTO').then(() => {
-                // Deliberately deferred until the first floor's gsplat has actually loaded (not
-                // fetched in parallel with it) - starting the sky's own load only once the model
-                // is already visible avoids the sky popping in at some arbitrary, mismatched point
-                // relative to the model's own reveal.
-                try {
-                    configurarCielo(elementoApp.app);
-                } catch (err) {
-                    console.error('configurarCielo falló (sin cielo, sigue el resto):', err);
-                }
-            }).catch((err) => {
+            cargarPiso('DEPARTAMENTO').catch((err) => {
                 console.error('cargarPiso falló:', err);
             });
         } catch (err) {
